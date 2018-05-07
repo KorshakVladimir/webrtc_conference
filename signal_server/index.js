@@ -8,7 +8,7 @@ var socketIO = require('socket.io');
 var fileServer = new(nodeStatic.Server)();
 var app = http.createServer(function(req, res) {
   fileServer.serve(req, res);
-}).listen(8080);
+}).listen(9090);
 
 
 var io = socketIO.listen(app);
@@ -24,7 +24,7 @@ io.sockets.on('connection', function(socket) {
   socket.on('message', function(message) {
     log('Client said: ', message);
     // for a real app, would be room-only (not broadcast)
-    socket.emit('message', message);
+    socket.broadcast.emit('message', message);
   });
 
   socket.on('create or join', function(room) {
@@ -36,11 +36,10 @@ io.sockets.on('connection', function(socket) {
 
     if (numClients === 0) {
       socket.join(room);
-      log('Client ID ' + socket.id + ' created room ' + room);
+      // log('Client ID ' + socket.id + ' created room ' + room);
       socket.emit('created', room, socket.id);
 
     } else if (numClients > 0) {
-      log('Client ID ' + socket.id + ' joined room ' + room);
       io.sockets.in(room).emit('join', room);
       socket.join(room);
       socket.emit('joined', room, socket.id);

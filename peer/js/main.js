@@ -26,7 +26,7 @@ var room = 'foo';
 // Could prompt for room name:
 // room = prompt('Enter room name:');
 
-var socket = io.connect("localhost:8080");
+var socket = io.connect("localhost:9090");
 
 if (room !== '') {
   socket.emit('create or join', room);
@@ -41,28 +41,29 @@ function sendMessage(message) {
 }
 
 // This client receives a message
-// socket.on('message', function(message) {
-//   console.log('Client received message:', message);
-//   if (message === 'got user media') {
-//     maybeStart();
-//   } else if (message.type === 'offer') {
-//     if (!isInitiator && !isStarted) {
-//       maybeStart();
-//     }
-//     pc.setRemoteDescription(new RTCSessionDescription(message));
-//     doAnswer();
-//   } else if (message.type === 'answer' && isStarted) {
-//     pc.setRemoteDescription(new RTCSessionDescription(message));
-//   } else if (message.type === 'candidate' && isStarted) {
-//     var candidate = new RTCIceCandidate({
-//       sdpMLineIndex: message.label,
-//       candidate: message.candidate
-//     });
-//     pc.addIceCandidate(candidate);
-//   } else if (message === 'bye' && isStarted) {
-//     handleRemoteHangup();
-//   }
-// });
+socket.on('message', function(message) {
+  console.log('Client received message:', message);
+  if (message === 'got user media') {
+    console.log("got user media");
+    // maybeStart();
+  } else if (message.type === 'offer') {
+    console.log("offer");
+    // maybeStart();
+    pc.setRemoteDescription(new RTCSessionDescription(message));
+    doAnswer();
+  } else if (message.type === 'answer') {
+    console.log("answer");
+    pc.setRemoteDescription(new RTCSessionDescription(message));
+  } else if (message.type === 'candidate') {
+    var candidate = new RTCIceCandidate({
+      sdpMLineIndex: message.label,
+      candidate: message.candidate
+    });
+    pc.addIceCandidate(candidate);
+  } else if (message === 'bye') {
+    handleRemoteHangup();
+  }
+});
 
 ////////////////////////////////////////////////////
 
@@ -88,17 +89,11 @@ var remoteVideo = document.querySelector('#remoteVideo');
 //   }
 // }
 
-var constraints = {
-  video: true
-};
-
-console.log('Getting user media with constraints', constraints);
-
 
 function maybeStart() {
     createPeerConnection();
-    pc.addStream(localStream);
-    doCall();
+    // pc.addStream(localStream);
+    // doCall();
 }
 
 // window.onbeforeunload = function() {
@@ -144,34 +139,35 @@ function handleIceCandidate(event) {
 //   pc.createOffer(setLocalAndSendMessage, handleCreateOfferError);
 // }
 //
-// function doAnswer() {
-//   console.log('Sending answer to peer.');
-//   pc.createAnswer().then(
-//     setLocalAndSendMessage,
-//     onCreateSessionDescriptionError
-//   );
-// }
-//
-// function setLocalAndSendMessage(sessionDescription) {
-//   pc.setLocalDescription(sessionDescription);
-//   console.log('setLocalAndSendMessage sending message', sessionDescription);
-//   sendMessage(sessionDescription);
-// }
-//
-// function onCreateSessionDescriptionError(error) {
-//   trace('Failed to create session description: ' + error.toString());
-// }
-//
+function doAnswer() {
+  console.log('Sending answer to peer.');
+  pc.createAnswer().then(
+    setLocalAndSendMessage,
+    onCreateSessionDescriptionError
+  );
+}
+
+function setLocalAndSendMessage(sessionDescription) {
+  pc.setLocalDescription(sessionDescription);
+  console.log('setLocalAndSendMessage sending message');
+  sendMessage(sessionDescription);
+}
+
+function onCreateSessionDescriptionError(error) {
+  trace('Failed to create session description: ' + error.toString());
+}
+
 function handleRemoteStreamAdded(event) {
   console.log('Remote stream added.');
   remoteStream = event.stream;
   remoteVideo.srcObject = remoteStream;
 }
-//
-// function handleRemoteStreamRemoved(event) {
-//   console.log('Remote stream removed. Event: ', event);
-// }
-//
+
+function handleRemoteStreamRemoved(event) {
+  console.log('Remote stream removed. Event: ', event);
+}
+
+maybeStart();
 // function hangup() {
 //   console.log('Hanging up.');
 //   stop();
