@@ -12,6 +12,14 @@ var room = 'foo';
 var peer_connections =[];
 var socket = io.connect("192.168.31.238:9090");
 
+var pcConfig = {
+  'iceServers': [
+    {'urls': 'stun:stun.l.google.com:19302'},
+    // {'urls': 'turn:numb.viagenie.ca'},
+    // {'urls': 'turn:d1.synergy.net:3478'}
+  ]
+};
+
 if (room !== '') {
   socket.emit('create or join', room);
 }
@@ -87,10 +95,12 @@ function createPeerConnection() {
   try {
     const len = peer_connections.push(new RTCPeerConnection(null));
     pc = peer_connections[len-1];
+    pc.setConfiguration(pcConfig);
     pc.onicecandidate = handleIceCandidate;
     pc.onaddstream = handleRemoteStreamAdded;
     pc.onremovestream = handleRemoteStreamRemoved;
   } catch (e) {
+    console.log(e);
     return;
   }
 }
