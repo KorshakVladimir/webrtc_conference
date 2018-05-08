@@ -38,7 +38,7 @@ io.sockets.on('connection', function(socket) {
     if (numClients === 0) {
       socket.join(room);
       // log('Client ID ' + socket.id + ' created room ' + room);
-      socket.emit('created', room, socket.id);
+      socket.emit('created');
 
     } else {
       io.in('foo').clients((error, clients) => {
