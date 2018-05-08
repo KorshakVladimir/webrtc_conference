@@ -8,6 +8,7 @@ var pc;
 var remoteStream;
 var turnReady;
 var peer;
+
 var pcConfig = {
   'iceServers': [{
     'urls': 'stun:stun.l.google.com:19302'
@@ -32,53 +33,72 @@ if (room !== '') {
   socket.emit('create or join', room);
 }
 
-//
-socket.on('joined', function(peer_id) {
-  console.log(peer_id);
+socket.on('created', function(socket_id) {
+  start_stream();
+});
+
+// socket.on('full', function(room) {
+//   console.log('Room ' + room + ' is full');
+// });
+
+socket.on('join', function (peer_id){
   peer = peer_id;
-  doCall()
+  createPeerConnection();
+});
+
+socket.on('joined', function(peer_id) {
+  console.log('joined', peer_id);
+  peer = peer_id;
+  doCall();
+});
+
+socket.on('log', function(array) {
+  console.log.apply(console, array);
 });
 
 ////////////////////////////////////////////////
 
 function sendMessage(message) {
-  console.log('Client sending message: ', message);
-  socket.emit('message', peer, message);
+  console.log('Client sending message: ',peer, message);
+  socket.emit('message', peer ,message);
 }
 
 // This client receives a message
 socket.on('message', function(message) {
-  if (message === 'got user media') {
-  } else if (message.type === 'answer') {
+  console.log('Client received message:', message);
+  if (message.type === 'offer') {
     pc.setRemoteDescription(new RTCSessionDescription(message));
-    console.log("answer", Date.now());
-  } else if (message.type === 'candidate') {
-    console.log("received ice", Date.now());
+    doAnswer();
+  } else if (message.type === 'answer' && isStarted) {
+    pc.setRemoteDescription(new RTCSessionDescription(message));
+  } else if (message.type === 'candidate' && isStarted) {
     var candidate = new RTCIceCandidate({
       sdpMLineIndex: message.label,
       candidate: message.candidate
     });
     pc.addIceCandidate(candidate);
-  } else if (message === 'bye') {
-    handleRemoteHangup();
   }
 });
 
 ////////////////////////////////////////////////////
 
 var localVideo = document.querySelector('#localVideo');
+var remoteVideo = document.querySelector('#remoteVideo');
 
-navigator.mediaDevices.getUserMedia({
-  audio: false,
-  video: true
-})
-.then(gotStream)
-.catch(function(e) {
-  alert('getUserMedia() error: ' + e.name);
-});
+function start_stream() {
+  navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: true
+  })
+  .then(gotStream)
+  .catch(function(e) {
+    alert('getUserMedia() error: ' + e.name);
+  });
+
+}
 
 function gotStream(stream) {
-  // console.log('Adding local stream.');
+  console.log('Adding local stream.');
   localStream = stream;
   localVideo.srcObject = stream;
   createPeerConnection();
@@ -91,6 +111,16 @@ var constraints = {
 
 console.log('Getting user media with constraints', constraints);
 
+// if (location.hostname !== 'localhost') {
+//   requestTurn(
+//     'https://computeengineondemand.appspot.com/turn?username=41784574&key=4080218913'
+//   );
+// }
+
+// window.onbeforeunload = function() {
+//   sendMessage('bye');
+// };
+
 /////////////////////////////////////////////////////////
 
 function createPeerConnection() {
@@ -99,22 +129,21 @@ function createPeerConnection() {
     pc.onicecandidate = handleIceCandidate;
     pc.onaddstream = handleRemoteStreamAdded;
     pc.onremovestream = handleRemoteStreamRemoved;
-    console.log('Created RTCPeerConnnection');
   } catch (e) {
-    console.log('Failed to create PeerConnection, `exception: ' + e.message);
+    alert('Cannot create RTCPeerConnection object.');
     return;
   }
 }
 
 function handleIceCandidate(event) {
-  console.log('icecandidate event: ', event, Date.now());
+  console.log('icecandidate event: ', event);
   if (event.candidate) {
-    sendMessage({
-      type: 'candidate',
-      label: event.candidate.sdpMLineIndex,
-      id: event.candidate.sdpMid,
-      candidate: event.candidate.candidate
-    });
+    // sendMessage({
+    //   type: 'candidate',
+    //   label: event.candidate.sdpMLineIndex,
+    //   id: event.candidate.sdpMid,
+    //   candidate: event.candidate.candidate
+    // });
   } else {
     console.log('End of candidates.');
   }
@@ -125,21 +154,52 @@ function handleCreateOfferError(event) {
 }
 
 function doCall() {
-  console.log('Sending offer to peer');
+  console.log("offer");
   pc.createOffer(setLocalAndSendMessage, handleCreateOfferError);
+}
+
+function doAnswer() {
+  console.log('Sending answer to peer.');
+  pc.createAnswer().then(
+    setLocalAndSendMessage,
+    onCreateSessionDescriptionError
+  );
 }
 
 function setLocalAndSendMessage(sessionDescription) {
   pc.setLocalDescription(sessionDescription);
-  console.log('setLocalAndSendMessage sending message', sessionDescription);
   sendMessage(sessionDescription);
 }
+
+function onCreateSessionDescriptionError(error) {
+  trace('Failed to create session description: ' + error.toString());
+}
+
+
 function handleRemoteStreamAdded(event) {
   console.log('Remote stream added.');
-  // remoteStream = event.stream;
-  // remoteVideo.srcObject = remoteStream;
+  remoteStream = event.stream;
+  remoteVideo.srcObject = remoteStream;
 }
-//
+
 function handleRemoteStreamRemoved(event) {
   console.log('Remote stream removed. Event: ', event);
+}
+
+function hangup() {
+  console.log('Hanging up.');
+  stop();
+  sendMessage('bye');
+}
+
+function handleRemoteHangup() {
+  console.log('Session terminated.');
+  stop();
+  isInitiator = false;
+}
+
+function stop() {
+  isStarted = false;
+  pc.close();
+  pc = null;
 }

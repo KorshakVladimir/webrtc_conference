@@ -7,6 +7,7 @@ var localStream;
 var pc;
 var remoteStream;
 var turnReady;
+var peer;
 
 var pcConfig = {
   'iceServers': [{
@@ -30,14 +31,16 @@ var socket = io.connect("localhost:9090");
 
 if (room !== '') {
   socket.emit('create or join', room);
-  console.log('Attempted to create or  join room', room);
 }
-
+socket.on('join', function (peer_id){
+  console.log(peer_id);
+  peer = peer_id;
+});
 ////////////////////////////////////////////////
 
 function sendMessage(message) {
   console.log('Client sending message: ', message);
-  socket.emit('message', message);
+  socket.emit('message',peer, message);
 }
 
 // This client receives a message
@@ -55,6 +58,7 @@ socket.on('message', function(message) {
     console.log("answer");
     pc.setRemoteDescription(new RTCSessionDescription(message));
   } else if (message.type === 'candidate') {
+    console.log("received ice", Date.now());
     var candidate = new RTCIceCandidate({
       sdpMLineIndex: message.label,
       candidate: message.candidate
@@ -117,7 +121,7 @@ function createPeerConnection() {
 }
 
 function handleIceCandidate(event) {
-  console.log('icecandidate event: ', event);
+  console.log('handleIceCandidate event: ', event, Date.now());
   if (event.candidate) {
     sendMessage({
       type: 'candidate',
