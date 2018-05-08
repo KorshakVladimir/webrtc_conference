@@ -4,13 +4,13 @@ var localStream;
 var pc;
 var remoteStream;
 var peer;
-
+var is_host;
 var localVideo = document.querySelector('#localVideo');
 /////////////////////////////////////////////
 
 var room = 'foo';
-
-var socket = io.connect("localhost:9090");
+var peer_connections =[];
+var socket = io.connect("192.168.31.238:9090");
 
 if (room !== '') {
   socket.emit('create or join', room);
@@ -20,11 +20,17 @@ socket.on('join', function (peer_id){
   createPeerConnection();
 });
 socket.on('joined', function(peer_id) {
+  console.log("joined");
   peer = peer_id;
-  doCall(pc)
+  if (!is_host) {
+    createPeerConnection();
+    pc.addStream(remoteStream);
+  }
+  doCall()
 });
 
 socket.on('created', function() {
+  is_host = true;
   navigator.mediaDevices.getUserMedia({
     audio: false,
     video: true
@@ -79,7 +85,8 @@ function doAnswer() {
 
 function createPeerConnection() {
   try {
-    pc = new RTCPeerConnection(null);
+    const len = peer_connections.push(new RTCPeerConnection(null));
+    pc = peer_connections[len-1];
     pc.onicecandidate = handleIceCandidate;
     pc.onaddstream = handleRemoteStreamAdded;
     pc.onremovestream = handleRemoteStreamRemoved;
@@ -103,8 +110,8 @@ function handleIceCandidate(event) {
 function handleCreateOfferError(event) {
 }
 
-function doCall(pc_t) {
-  pc_t.createOffer(setLocalAndSendMessage, handleCreateOfferError);
+function doCall() {
+  pc.createOffer(setLocalAndSendMessage, handleCreateOfferError);
 }
 
 function setLocalAndSendMessage(sessionDescription) {
@@ -115,7 +122,6 @@ function setLocalAndSendMessage(sessionDescription) {
 function handleRemoteStreamAdded(event) {
   remoteStream = event.stream;
   localVideo.srcObject = remoteStream;
-  // pc.addStream(remoteStream);
 }
 //
 function handleRemoteStreamRemoved(event) {
