@@ -38,16 +38,16 @@ io.sockets.on('connection', function(socket) {
     if (numClients === 0) {
       socket.join(room);
       // log('Client ID ' + socket.id + ' created room ' + room);
-      socket.emit('created');
+      socket.emit('created', socket.id);
 
     } else {
       io.in('foo').clients((error, clients) => {
         socket.join(room);
         var last = clients.slice(-1)[0];
-        console.log('host', last);
-        socket.emit('join', last);
+        // console.log('host', last);
+        socket.emit('join', last, socket.id);
         io.to(last).emit("joined", socket.id);
-        console.log('peer ', socket.id);
+        // console.log('peer ', socket.id);
       });
     }
   });
@@ -63,8 +63,22 @@ io.sockets.on('connection', function(socket) {
     }
   });
 
-  socket.on('bye', function(){
-    console.log('received bye');
+  socket.on('remove_peer', function(){
+    io.in('foo').clients((error, clients) => {
+        console.log("yahoo");
+        const pos_el = clients.indexOf(socket.id);
+        // console.log('pos_el', pos_el);
+        if (pos_el==0) {
+            return;
+        }
+        const peer_host = clients[pos_el - 1];
+        const peer_client = clients[pos_el + 1];
+        // console.log('peer_host', peer_host);
+        // console.log('peer_client', peer_client);
+        io.to(peer_host).emit("joined", peer_client);
+        io.to(peer_client).emit("join", peer_host);
+        clients.splice(pos_el, 1);
+    });
   });
 
 });

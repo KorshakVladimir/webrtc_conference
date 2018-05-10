@@ -10,8 +10,8 @@ var localVideo = document.querySelector('#localVideo');
 
 var room = 'foo';
 var peer_connections =[];
-var socket = io.connect("192.168.31.238:9090");
-
+var socket = io.connect("localhost:9090");
+var my_own_id;
 var pcConfig = {
   'iceServers': [
     {'urls': 'stun:stun.l.google.com:19302'},
@@ -23,8 +23,9 @@ var pcConfig = {
 if (room !== '') {
   socket.emit('create or join', room);
 }
-socket.on('join', function (peer_id){
+socket.on('join', function (peer_id, my_own_id){
   peer = peer_id;
+  console.log(my_own_id);
   createPeerConnection();
 });
 socket.on('joined', function(peer_id) {
@@ -37,7 +38,8 @@ socket.on('joined', function(peer_id) {
   doCall()
 });
 
-socket.on('created', function() {
+socket.on('created', function(my_own_id) {
+  console.log(my_own_id);
   is_host = true;
   navigator.mediaDevices.getUserMedia({
     audio: false,
@@ -139,3 +141,7 @@ function handleRemoteStreamRemoved(event) {
 
 function onCreateSessionDescriptionError(error) {
 }
+
+window.onbeforeunload = function() {
+  socket.emit('remove_peer', peer);
+};
