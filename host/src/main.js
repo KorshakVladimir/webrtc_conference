@@ -1,4 +1,6 @@
 'use strict';
+var vad = require('../node_modules/voice-activity-detection/index.js');
+
 
 var localStream;
 var pc;
@@ -11,7 +13,7 @@ var localVideo = document.querySelector('#localVideo');
 var room = 'foo';
 var peer_connections =[];
 var socket = io.connect("localhost:9090");
-var my_own_id;
+var audioContext;
 var pcConfig = {
   'iceServers': [
     {'urls': 'stun:stun.l.google.com:19302'},
@@ -42,18 +44,39 @@ socket.on('created', function(my_own_id) {
   console.log(my_own_id);
   is_host = true;
   navigator.mediaDevices.getUserMedia({
-    audio: false,
+    audio: true,
     video: true
   })
   .then(gotStream)
   .catch(function(e) {
-    alert('getUserMedia() error: ' + e.name);
+    alert('getUserMedia() error: ' + e);
   });
 });
 
+function add_voice_detection(stream) {
+  const options = {
+    fftSize: 1024,
+    bufferLen: 1024,
+    smoothingTimeConstant: 0.2,
+    minCaptureFreq: 85,         // in Hz
+    maxCaptureFreq: 255,        // in Hz
+    noiseCaptureDuration: 1000, // in ms
+    minNoiseLevel: 0.3,         // from 0 to 1
+    maxNoiseLevel: 0.7,         // from 0 to 1
+    avgNoiseMultiplier: 1.2,
+    onVoiceStart: function() {console.log("start")},
+    onVoiceStop: function() {console.log("stop")},
+  };
+  vad(audioContext, stream, options);
+}
+
 function gotStream(stream) {
+
+  window.AudioContext = window.AudioContext || window.webkitAudioContext;
+  audioContext = new AudioContext();
   localStream = stream;
   localVideo.srcObject = stream;
+  add_voice_detection(stream);
   createPeerConnection();
   pc.addStream(localStream);
 }

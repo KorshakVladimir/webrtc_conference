@@ -9,9 +9,11 @@ var fileServer = new(nodeStatic.Server)();
 var app = http.createServer(function(req, res) {
   fileServer.serve(req, res);
 }).listen(9090);
-
-
+var room = 'foo';
 var io = socketIO.listen(app);
+
+
+var current_host = '';
 io.sockets.on('connection', function(socket) {
 
   // convenience function to log server messages on the client
@@ -21,10 +23,14 @@ io.sockets.on('connection', function(socket) {
     socket.emit('log', array);
   }
 
+  socket.on('voice_start', function() {
+    io.in(room).clients((error, clients) => {
+      const pos_el = clients.indexOf(socket.id);
+      
+    };
+  });
+
   socket.on('message', function(peer, message) {
-    log('Client said: ', message);
-    // for a real app, would be room-only (not broadcast)
-    // socket.broadcast.emit('message', message);
     io.to(peer).emit('message', message);
   });
 
@@ -39,9 +45,10 @@ io.sockets.on('connection', function(socket) {
       socket.join(room);
       // log('Client ID ' + socket.id + ' created room ' + room);
       socket.emit('created', socket.id);
+      current_host = socket.id;
 
     } else {
-      io.in('foo').clients((error, clients) => {
+      io.in(room).clients((error, clients) => {
         socket.join(room);
         var last = clients.slice(-1)[0];
         // console.log('host', last);
@@ -64,7 +71,7 @@ io.sockets.on('connection', function(socket) {
   });
 
   socket.on('remove_peer', function(){
-    io.in('foo').clients((error, clients) => {
+    io.in(room).clients((error, clients) => {
         console.log("yahoo");
         const pos_el = clients.indexOf(socket.id);
         // console.log('pos_el', pos_el);
