@@ -1,6 +1,5 @@
 'use strict';
 var vad = require('../node_modules/voice-activity-detection/index.js');
-var process = require('process');
 
 var localStream;
 var pc;
@@ -13,11 +12,8 @@ var remoteVideo = document.querySelector('#remoteVideo');
 
 var room = 'foo';
 var peer_connections =[];
-if (process.env.NODE_ENV === "prod"){
-  var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
-} else{
-  var socket = io.connect("localhost:9090");
-}
+// var socket = io.connect("localhost:9090");
+var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
 
 var audioContext;
 var pcConfig = {
