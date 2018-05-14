@@ -5,15 +5,15 @@ var localStream;
 var pc;
 var remoteStream;
 var peer;
-var is_host;
+var is_host = false;
 var localVideo = document.querySelector('#localVideo');
 var remoteVideo = document.querySelector('#remoteVideo');
 /////////////////////////////////////////////
 
 var room = 'foo';
 var peer_connections =[];
-// var socket = io.connect("localhost:9090");
-var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
+var socket = io.connect("192.168.10.212:9090");
+// var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
 
 var audioContext;
 var pcConfig = {
@@ -28,9 +28,8 @@ socket.on('remove_host', function (){
   is_host = false;
 });
 
-socket.on('peer_to_host', function (peer_id, my_own_id){
+socket.on('peer_to_host', function (peer_id){
   peer = peer_id;
-  console.log(my_own_id);
   createPeerConnection();
 });
 
@@ -147,7 +146,10 @@ window.onbeforeunload = function() {
 
 //////////////////////////////////////////////////
 function on_voice_start() {
-  socket.emit('voice_start');
+  console.log("voice started", is_host);
+  if (is_host == false){
+    socket.emit('voice_start');
+  }
   is_host = true;
 }
 
@@ -173,6 +175,7 @@ function gotStream(stream) {
   audioContext = new AudioContext();
   localStream = stream;
   localVideo.srcObject = stream;
+  mute_button.click();
   add_voice_detection(stream);
   socket.emit('create or join', room);
 }
@@ -186,3 +189,14 @@ navigator.mediaDevices.getUserMedia({
     alert('getUserMedia() error: ' + e);
   });
 //////////////////////////////////////////////////
+const mute_button = document.querySelector('#mute_button');
+mute_button.addEventListener("click", function(e){
+  const audio = localStream.getAudioTracks()[0];
+  audio.enabled = !(audio.enabled);
+  if (audio.enabled){
+    e.target.innerText = "MUTE";
+  }else{
+    e.target.innerText = "UNMUTE";
+  }
+});
+

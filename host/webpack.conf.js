@@ -8,4 +8,10 @@ module.exports = {
     }
     ,
     devtool: "source-map", // enum
+    devServer: {
+      contentBase: path.join(__dirname, "dist"),
+      compress: true,
+      port: 9000,
+      https: true
+    }
 };
