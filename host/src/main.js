@@ -12,8 +12,8 @@ var remoteVideo = document.querySelector('#remoteVideo');
 
 var room = 'foo';
 var peer_connections =[];
-var socket = io.connect("192.168.10.212:9090");
-// var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
+// var socket = io.connect("192.168.10.212:9090");
+var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
 
 var audioContext;
 var pcConfig = {
