@@ -192,15 +192,15 @@ navigator.mediaDevices.getUserMedia({
 //////////////////////////////////////////////////
 const mute_button = document.querySelector('#mute_button');
 mute_button.addEventListener("click", function(e){
-  if (!audioContext) {
-    create_audio();
-  }
   const audio = localStream.getAudioTracks()[0];
   audio.enabled = !(audio.enabled);
   if (audio.enabled){
     e.target.innerText = "MUTE";
   }else{
     e.target.innerText = "UNMUTE";
+  }
+  if (!audioContext) {
+    create_audio();
   }
 });
  function create_audio(){
