@@ -8,5 +8,4 @@ module.exports = {
     }
     ,
     devtool: "source-map", // enum
-    watch: true
 };

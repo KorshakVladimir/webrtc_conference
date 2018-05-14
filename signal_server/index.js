@@ -28,11 +28,11 @@ io.sockets.on('connection', function(socket) {
     socket.broadcast.emit('remove_host');
     const pos_el = clients.indexOf(socket.id);
     on_remove_peer(socket.id);
-    clients = [pos_el, ...clients];
+    clients = [socket.id, ...clients];
     const peer_host = pos_el;
     const peer_client = clients[1];
-    io.to(peer_host).emit("joined", peer_client);
-    io.to(peer_client).emit("join", peer_host);
+    io.to(peer_host).emit("host_to_peer", peer_client);
+    io.to(peer_client).emit("peer_to_host", peer_host);
   });
 
   socket.on('message', function(peer, message) {
@@ -40,20 +40,17 @@ io.sockets.on('connection', function(socket) {
   });
 
   socket.on('create or join', function(room) {
+    console.log("clients",clients);
     clients.push(socket.id);
-    // const numClients = clients.length;
-
-    // if (numClients === 0) {
-    //   socket.join(room);
-    //   socket.emit('created', socket.id);
-    //   current_host = socket.id;
-    //
-    // } else {
+    if (clients.length == 1){
+        io.to(socket.id).emit('first');
+        return
+    }
     socket.join(room);
-    const last = clients.slice(-1)[0];
-    io.to(socket.id).emit('join', last, socket.id);
+    const last = clients.slice(-2)[0];
+    console.log("last", last);
+    io.to(socket.id).emit('peer_to_host', last, socket.id);
     io.to(last).emit("host_to_peer", socket.id);
-    // }
   });
 
   // socket.on('ipaddr', function() {
@@ -69,12 +66,14 @@ io.sockets.on('connection', function(socket) {
  function on_remove_peer(socket_id) {
     const pos_el = clients.indexOf(socket_id);
     if (pos_el==0) {
-        return;
+      clients.splice(pos_el, 1);
+      return;
     }
     const peer_host = clients[pos_el - 1];
     const peer_client = clients[pos_el + 1];
-    io.to(peer_host).emit("joined", peer_client);
-    io.to(peer_client).emit("join", peer_host);
+    io.to(peer_host).emit("host_to_peer", peer_client);
+    io.to(peer_client).emit("peer_to_host", peer_host);
+    console.log("clients for remove", clients);
     clients.splice(pos_el, 1);
  }
   socket.on('remove_peer', function(){

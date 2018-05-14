@@ -12,7 +12,8 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack --config webpack.conf.js"
+    "build": "webpack --config webpack.conf.js",
+    "build_prod": "webpack --env.NODE_ENV=prod --config webpack.conf.js"
   },
   "author": "",
   "license": "ISC"

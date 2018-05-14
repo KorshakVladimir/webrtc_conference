@@ -1,6 +1,6 @@
 'use strict';
 var vad = require('../node_modules/voice-activity-detection/index.js');
-
+var process = require('process');
 
 var localStream;
 var pc;
@@ -8,11 +8,17 @@ var remoteStream;
 var peer;
 var is_host;
 var localVideo = document.querySelector('#localVideo');
+var remoteVideo = document.querySelector('#remoteVideo');
 /////////////////////////////////////////////
 
 var room = 'foo';
 var peer_connections =[];
-var socket = io.connect("localhost:9090");
+if (process.env.NODE_ENV === "prod"){
+  var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
+} else{
+  var socket = io.connect("localhost:9090");
+}
+
 var audioContext;
 var pcConfig = {
   'iceServers': [
@@ -26,7 +32,7 @@ socket.on('remove_host', function (){
   is_host = false;
 });
 
-socket.on('join', function (peer_id, my_own_id){
+socket.on('peer_to_host', function (peer_id, my_own_id){
   peer = peer_id;
   console.log(my_own_id);
   createPeerConnection();
@@ -37,11 +43,17 @@ socket.on('host_to_peer', function(peer_id) {
   createPeerConnection();
   if (!is_host) {
     pc.addStream(remoteStream);
-  }else {
+  } else{
     pc.addStream(localStream);
   }
   doCall()
 });
+
+socket.on('first', function (){
+  is_host = true;
+})
+
+
 
 // socket.on('created', function(my_own_id) {
 //   console.log(my_own_id);
@@ -124,7 +136,7 @@ function setLocalAndSendMessage(sessionDescription) {
 
 function handleRemoteStreamAdded(event) {
   remoteStream = event.stream;
-  localVideo.srcObject = remoteStream;
+  remoteVideo.srcObject = remoteStream;
 }
 //
 function handleRemoteStreamRemoved(event) {
@@ -166,6 +178,7 @@ function gotStream(stream) {
   localStream = stream;
   localVideo.srcObject = stream;
   add_voice_detection(stream);
+  socket.emit('create or join', room);
 }
 
 navigator.mediaDevices.getUserMedia({
@@ -176,8 +189,4 @@ navigator.mediaDevices.getUserMedia({
   .catch(function(e) {
     alert('getUserMedia() error: ' + e);
   });
-
-if (room !== '') {
-  socket.emit('create or join', room);
-}
 //////////////////////////////////////////////////
