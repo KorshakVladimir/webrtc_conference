@@ -22,65 +22,33 @@ var pcConfig = {
   ]
 };
 
-if (room !== '') {
-  socket.emit('create or join', room);
-}
+socket.on('remove_host', function (){
+  is_host = false;
+});
+
 socket.on('join', function (peer_id, my_own_id){
   peer = peer_id;
   console.log(my_own_id);
   createPeerConnection();
 });
-socket.on('joined', function(peer_id) {
-  console.log("joined");
+
+socket.on('host_to_peer', function(peer_id) {
   peer = peer_id;
+  createPeerConnection();
   if (!is_host) {
-    createPeerConnection();
     pc.addStream(remoteStream);
+  }else {
+    pc.addStream(localStream);
   }
   doCall()
 });
 
-socket.on('created', function(my_own_id) {
-  console.log(my_own_id);
-  is_host = true;
-  navigator.mediaDevices.getUserMedia({
-    audio: true,
-    video: true
-  })
-  .then(gotStream)
-  .catch(function(e) {
-    alert('getUserMedia() error: ' + e);
-  });
-});
-
-function add_voice_detection(stream) {
-  const options = {
-    fftSize: 1024,
-    bufferLen: 1024,
-    smoothingTimeConstant: 0.2,
-    minCaptureFreq: 85,         // in Hz
-    maxCaptureFreq: 255,        // in Hz
-    noiseCaptureDuration: 1000, // in ms
-    minNoiseLevel: 0.3,         // from 0 to 1
-    maxNoiseLevel: 0.7,         // from 0 to 1
-    avgNoiseMultiplier: 1.2,
-    onVoiceStart: function() {console.log("start")},
-    onVoiceStop: function() {console.log("stop")},
-  };
-  vad(audioContext, stream, options);
-}
-
-function gotStream(stream) {
-
-  window.AudioContext = window.AudioContext || window.webkitAudioContext;
-  audioContext = new AudioContext();
-  localStream = stream;
-  localVideo.srcObject = stream;
-  add_voice_detection(stream);
-  createPeerConnection();
-  pc.addStream(localStream);
-}
-////////////////////////////////////////////////
+// socket.on('created', function(my_own_id) {
+//   console.log(my_own_id);
+//   is_host = true;
+//   createPeerConnection();
+//   pc.addStream(localStream);
+// });
 
 function sendMessage(message) {
   socket.emit('message', peer, message);
@@ -168,3 +136,48 @@ function onCreateSessionDescriptionError(error) {
 window.onbeforeunload = function() {
   socket.emit('remove_peer', peer);
 };
+
+//////////////////////////////////////////////////
+function on_voice_start() {
+  socket.emit('voice_start');
+  is_host = true;
+}
+
+function add_voice_detection(stream) {
+  const options = {
+    fftSize: 1024,
+    bufferLen: 1024,
+    smoothingTimeConstant: 0.2,
+    minCaptureFreq: 85,         // in Hz
+    maxCaptureFreq: 255,        // in Hz
+    noiseCaptureDuration: 1000, // in ms
+    minNoiseLevel: 0.3,         // from 0 to 1
+    maxNoiseLevel: 0.7,         // from 0 to 1
+    avgNoiseMultiplier: 1.2,
+    onVoiceStart: on_voice_start,
+    // onVoiceStop: function() {console.log("stop")},
+  };
+  vad(audioContext, stream, options);
+}
+
+function gotStream(stream) {
+  window.AudioContext = window.AudioContext || window.webkitAudioContext;
+  audioContext = new AudioContext();
+  localStream = stream;
+  localVideo.srcObject = stream;
+  add_voice_detection(stream);
+}
+
+navigator.mediaDevices.getUserMedia({
+    audio: true,
+    video: true
+  })
+  .then(gotStream)
+  .catch(function(e) {
+    alert('getUserMedia() error: ' + e);
+  });
+
+if (room !== '') {
+  socket.emit('create or join', room);
+}
+//////////////////////////////////////////////////
