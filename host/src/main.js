@@ -151,6 +151,7 @@ function on_voice_start() {
     socket.emit('voice_start');
   }
   is_host = true;
+  console.log("host");
 }
 
 function add_voice_detection(stream) {
@@ -171,12 +172,12 @@ function add_voice_detection(stream) {
 }
 
 function gotStream(stream) {
-  window.AudioContext = window.AudioContext || window.webkitAudioContext;
-  audioContext = new AudioContext();
+  // window.AudioContext = window.AudioContext || window.webkitAudioContext;
+  // audioContext = new AudioContext();
   localStream = stream;
+  // add_voice_detection(localStream);
   localVideo.srcObject = stream;
-  mute_button.click();
-  add_voice_detection(stream);
+  localStream.getAudioTracks()[0].enabled = false;
   socket.emit('create or join', room);
 }
 
@@ -191,6 +192,9 @@ navigator.mediaDevices.getUserMedia({
 //////////////////////////////////////////////////
 const mute_button = document.querySelector('#mute_button');
 mute_button.addEventListener("click", function(e){
+  if (!audioContext) {
+    create_audio();
+  }
   const audio = localStream.getAudioTracks()[0];
   audio.enabled = !(audio.enabled);
   if (audio.enabled){
@@ -199,4 +203,8 @@ mute_button.addEventListener("click", function(e){
     e.target.innerText = "UNMUTE";
   }
 });
-
+ function create_audio(){
+  window.AudioContext = window.AudioContext || window.webkitAudioContext;
+  audioContext = new AudioContext();
+  add_voice_detection(localStream);
+};

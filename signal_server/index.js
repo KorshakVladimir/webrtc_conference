@@ -48,11 +48,12 @@ io.sockets.on('connection', function(socket) {
   socket.on('create or join', function(room) {
     console.log("clients",clients);
     clients.push(socket.id);
+    socket.join(room);
+
     if (clients.length == 1){
         io.to(socket.id).emit('first');
         return
     }
-    socket.join(room);
     const last = clients.slice(-2)[0];
     console.log("last", last);
     io.to(socket.id).emit('peer_to_host', last, socket.id);
