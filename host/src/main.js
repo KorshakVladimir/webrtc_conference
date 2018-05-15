@@ -12,8 +12,8 @@ var remoteVideo = document.querySelector('#remoteVideo');
 
 var room = 'foo';
 var peer_connections =[];
-// var socket = io.connect("192.168.10.212:9090");
-var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
+var socket = io.connect("192.168.31.238:9090");
+// var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
 
 var audioContext;
 var pcConfig = {
@@ -25,16 +25,19 @@ var pcConfig = {
 };
 
 socket.on('remove_host', function (){
+  console.log("host was removing");
   is_host = false;
 });
 
 socket.on('peer_to_host', function (peer_id){
+  console.log("peer_to_host to", peer_id);
   peer = peer_id;
   createPeerConnection();
 });
 
 socket.on('host_to_peer', function(peer_id) {
   peer = peer_id;
+  console.log("host_to_peer to", peer_id);
   createPeerConnection();
   if (!is_host) {
     pc.addStream(remoteStream);
@@ -46,7 +49,7 @@ socket.on('host_to_peer', function(peer_id) {
 
 socket.on('first', function (){
   is_host = true;
-})
+});
 
 
 
@@ -149,6 +152,9 @@ function on_voice_start() {
   console.log("voice started", is_host);
   if (is_host == false){
     socket.emit('voice_start');
+    const old_con = peer_connections.shift();
+    old_con.removeStream(remoteStream);
+    old_con.close();
   }
   is_host = true;
   console.log("host");

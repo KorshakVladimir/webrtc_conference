@@ -32,12 +32,19 @@ io.sockets.on('connection', function(socket) {
       return;
     }
     socket.broadcast.emit('remove_host');
-    // const pos_el = clients.indexOf(socket.id);
-    on_remove_peer(socket.id);
+
+    if (clients.length > 2){
+      restore_connection(socket.id);
+    } else {
+      const pos_el = clients.indexOf(socket.id);
+      clients.splice(pos_el, 1);
+    }
     clients = [socket.id, ...clients];
     const peer_host = socket.id;
     const peer_client = clients[1];
+    console.log("connect to host_to_peer", peer_host ,"to", peer_client);
     io.to(peer_host).emit("host_to_peer", peer_client);
+    console.log("connect to peer_to_host", peer_client ,"to", peer_host);
     io.to(peer_client).emit("peer_to_host", peer_host);
   });
 
@@ -70,27 +77,21 @@ io.sockets.on('connection', function(socket) {
   //     });
   //   }
   // });
- function on_remove_peer(socket_id) {
+ function restore_connection(socket_id) {
+   // restore connection for peer if peer between was droped
     const pos_el = clients.indexOf(socket_id);
-    if (pos_el == -1 || pos_el == 0) {
+    if (pos_el == -1) {
       return;
     }
-    console.log("clients before remove", clients);
     clients.splice(pos_el, 1);
-    console.log("clients for remove", clients);
-    if (clients.length == 1) {
-      return;
-    }
+    console.log("clients left", clients);
     const peer_host = clients[pos_el - 1];
-    const peer_client = clients[pos_el + 1];
+    const peer_client = clients[pos_el];
     io.to(peer_host).emit("host_to_peer", peer_client);
-    console.log("host_to_peer fuck")
     io.to(peer_client).emit("peer_to_host", peer_host);
-
-    clients.splice(pos_el, 1);
  }
   socket.on('remove_peer', function() {
-    on_remove_peer(socket.id);
+    restore_connection(socket.id);
   });
 
 });
