@@ -12,7 +12,8 @@ var remoteVideo = document.querySelector('#remoteVideo');
 
 var room = 'foo';
 var peer_connections =[];
-var socket = io.connect("192.168.31.238:9090");
+// var socket = io.connect("192.168.31.238:9090");
+var socket = io.connect("192.168.9.37:9090");
 // var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
 
 var audioContext;
@@ -161,10 +162,10 @@ function handleRemoteStreamAdded(event) {
     console.log("add to old connection");
     console.log(" connection length", peer_connections.length);
     var con_before = peer_connections[peer_connections.length - 2];
-    console.log("remote conn type", con_before.connection_type);
-    var old_stream = con_before.getLocalStreams()[0];
-    var video_track = remoteStream.getVideoTracks();
-    var old_tracks = old_stream.getTracks();
+    // console.log("remote conn type", con_before.connection_type);
+    // var old_stream = con_before.getLocalStreams()[0];
+    // var video_track = remoteStream.getVideoTracks();
+    // var old_tracks = old_stream.getTracks();
     // con_before.removeStream(old_stream[0]);
     con_before.addStream(remoteStream);
   }
