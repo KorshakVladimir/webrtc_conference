@@ -19,6 +19,14 @@ var io = socketIO.listen(app);
 var clients = [];
 
 var current_host = '';
+function create_connection(from_peer, to_peer){
+  const peer_host = from_peer;
+  const peer_client = to_peer;
+  console.log("connect to host_to_peer", peer_host ,"to", peer_client);
+  io.to(peer_host).emit("host_to_peer", peer_client);
+  console.log("connect to peer_to_host", peer_client ,"to", peer_host);
+  io.to(peer_client).emit("peer_to_host", peer_host);
+}
 io.sockets.on('connection', function(socket) {
   function log() {
     var array = ['Message from server:'];
@@ -32,20 +40,31 @@ io.sockets.on('connection', function(socket) {
       return;
     }
     socket.broadcast.emit('remove_host');
-
-    if (clients.length > 2){
-      restore_connection(socket.id);
-    } else {
+    if (clients.length == 2){
+      const old_host = clients.shift();
+      clients = [socket.id, old_host];
+      create_connection(clients[0], clients[1]);
+      return;
+    } else if ( clients.length == 3 ) {
+      const old_host = clients.shift();
       const pos_el = clients.indexOf(socket.id);
       clients.splice(pos_el, 1);
+      clients = [socket.id, ...clients, old_host];
+      create_connection(clients[0], clients[1]);
+      create_connection(clients[1], clients[2]);
+      return;
+    } else {
+      const pos_el = clients.indexOf(socket.id);
+      if (pos_el != clients.length - 1 && pos_el > 1 ){
+        restore_connection(socket.id);
+      }else{
+        clients.splice(pos_el, 1);
+      }
+      const old_host = clients.shift();
+      clients = [socket.id, ...clients, old_host];
+      create_connection(clients[0], clients[1]);
+      create_connection(clients[clients.length-2], clients[clients.length-1]);
     }
-    clients = [socket.id, ...clients];
-    const peer_host = socket.id;
-    const peer_client = clients[1];
-    console.log("connect to host_to_peer", peer_host ,"to", peer_client);
-    io.to(peer_host).emit("host_to_peer", peer_client);
-    console.log("connect to peer_to_host", peer_client ,"to", peer_host);
-    io.to(peer_client).emit("peer_to_host", peer_host);
   });
 
   socket.on('message', function(peer, message) {

@@ -13,5 +13,9 @@ module.exports = {
       compress: true,
       port: 9000,
       https: true
-    }
+    },
+    optimization: {
+		// We no not want to minimize our code.
+      minimize: false
+    },
 };

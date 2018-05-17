@@ -2,7 +2,7 @@
 var vad = require('../node_modules/voice-activity-detection/index.js');
 
 var localStream;
-var pc;
+var peer_con;
 var remoteStream;
 var peer;
 var is_host = false;
@@ -26,23 +26,42 @@ var pcConfig = {
 
 socket.on('remove_host', function (){
   console.log("host was removing");
+  if (is_host){
+    console.log("peer_connections", peer_connections.length);
+    // const con = peer_connections[0];
+    // con.close();
+    // peer_connections = []
+  }
   is_host = false;
 });
 
-socket.on('peer_to_host', function (peer_id){
+socket.on('peer_to_host', function (peer_id, my_id){
+  console.log("my socket id", my_id);
   console.log("peer_to_host to", peer_id);
   peer = peer_id;
-  createPeerConnection();
+  createPeerConnection('peer_to_host');
 });
 
 socket.on('host_to_peer', function(peer_id) {
   peer = peer_id;
   console.log("host_to_peer to", peer_id);
-  createPeerConnection();
+  createPeerConnection("host_to_peer");
   if (!is_host) {
-    pc.addStream(remoteStream);
+     remoteStream.onaddtrack = function () {
+        console.log("add track");
+     };
+     remoteStream.onremovetrack = function () {
+        console.log("remove track");
+     };
+    peer_con.addStream(remoteStream);
   } else{
-    pc.addStream(localStream);
+    localStream.onaddtrack = function () {
+        console.log("add track");
+    };
+    localStream.onremovetrack = function () {
+        console.log("remove track");
+    };
+    peer_con.addStream(localStream);
   }
   doCall()
 });
@@ -67,16 +86,16 @@ function sendMessage(message) {
 // This client receives a message
 socket.on('message', function(message) {
   if (message.type === 'offer') {
-    pc.setRemoteDescription(new RTCSessionDescription(message));
+    peer_con.setRemoteDescription(new RTCSessionDescription(message));
     doAnswer();
   } else if (message.type === 'answer') {
-    pc.setRemoteDescription(new RTCSessionDescription(message));
+    peer_con.setRemoteDescription(new RTCSessionDescription(message));
   } else if (message.type === 'candidate') {
     var candidate = new RTCIceCandidate({
       sdpMLineIndex: message.label,
       candidate: message.candidate
     });
-    pc.addIceCandidate(candidate);
+    peer_con.addIceCandidate(candidate);
   } else if (message === 'bye') {
     handleRemoteHangup();
   }
@@ -86,7 +105,7 @@ socket.on('message', function(message) {
 
 function doAnswer() {
   console.log('Sending answer to peer.');
-  pc.createAnswer().then(
+  peer_con.createAnswer().then(
     setLocalAndSendMessage,
     onCreateSessionDescriptionError
   );
@@ -94,14 +113,16 @@ function doAnswer() {
 
 /////////////////////////////////////////////////////////
 
-function createPeerConnection() {
+function createPeerConnection(connection_type) {
   try {
     const len = peer_connections.push(new RTCPeerConnection(null));
-    pc = peer_connections[len-1];
-    pc.setConfiguration(pcConfig);
-    pc.onicecandidate = handleIceCandidate;
-    pc.onaddstream = handleRemoteStreamAdded;
-    pc.onremovestream = handleRemoteStreamRemoved;
+    peer_con = peer_connections[len-1];
+    peer_con.connection_type = connection_type;
+    console.log("connection_type", connection_type);
+    peer_con.setConfiguration(pcConfig);
+    peer_con.onicecandidate = handleIceCandidate;
+    peer_con.onaddstream = handleRemoteStreamAdded;
+    peer_con.onremovestream = handleRemoteStreamRemoved;
   } catch (e) {
     console.log(e);
     return;
@@ -124,17 +145,29 @@ function handleCreateOfferError(event) {
 }
 
 function doCall() {
-  pc.createOffer(setLocalAndSendMessage, handleCreateOfferError);
+  peer_con.createOffer(setLocalAndSendMessage, handleCreateOfferError);
 }
 
 function setLocalAndSendMessage(sessionDescription) {
-  pc.setLocalDescription(sessionDescription);
+  peer_con.setLocalDescription(sessionDescription);
   sendMessage(sessionDescription);
 }
 
 function handleRemoteStreamAdded(event) {
+  console.log("new remote stream");
   remoteStream = event.stream;
   remoteVideo.srcObject = remoteStream;
+  if (peer_connections.length > 2){
+    console.log("add to old connection");
+    console.log(" connection length", peer_connections.length);
+    var con_before = peer_connections[peer_connections.length - 2];
+    console.log("remote conn type", con_before.connection_type);
+    var old_stream = con_before.getLocalStreams()[0];
+    var video_track = remoteStream.getVideoTracks();
+    var old_tracks = old_stream.getTracks();
+    // con_before.removeStream(old_stream[0]);
+    con_before.addStream(remoteStream);
+  }
 }
 //
 function handleRemoteStreamRemoved(event) {
@@ -152,9 +185,11 @@ function on_voice_start() {
   console.log("voice started", is_host);
   if (is_host == false){
     socket.emit('voice_start');
-    const old_con = peer_connections.shift();
-    old_con.removeStream(remoteStream);
+    let old_con = peer_connections.shift();
     old_con.close();
+    // old_con = peer_connections.shift();
+    // old_con.close();
+    // peer_connections = [];
   }
   is_host = true;
   console.log("host");
