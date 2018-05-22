@@ -1,19 +1,23 @@
 'use strict';
 var vad = require('../node_modules/voice-activity-detection/index.js');
+var VideoStreamMerger = require('video-stream-merger')
 
 var localStream;
 var peer_con;
 var remoteStream;
 var peer;
 var is_host = false;
+var central_peer = false;
+
+var merger;
 var localVideo = document.querySelector('#localVideo');
 var remoteVideo = document.querySelector('#remoteVideo');
 /////////////////////////////////////////////
 
 var room = 'foo';
 var peer_connections =[];
-var socket = io.connect("192.168.31.238:9090");
-// var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
+// var socket = io.connect("192.168.31.238:9090");
+var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
 
 var audioContext;
 var pcConfig = {
@@ -46,28 +50,26 @@ socket.on('host_to_peer', function(peer_id) {
   peer = peer_id;
   console.log("host_to_peer to", peer_id);
   createPeerConnection("host_to_peer");
-  if (!is_host) {
-     remoteStream.onaddtrack = function () {
-        console.log("add track");
-     };
-     remoteStream.onremovetrack = function () {
-        console.log("remove track");
-     };
-    peer_con.addStream(remoteStream);
+
+  if (!central_peer) {
+    if (!is_host){
+      peer_con.addStream(remoteStream);
+    }else{
+       peer_con.addStream(localStream);
+    }
   } else{
-    localStream.onaddtrack = function () {
-        console.log("add track");
-    };
-    localStream.onremovetrack = function () {
-        console.log("remove track");
-    };
-    peer_con.addStream(localStream);
+    merger = new VideoStreamMerger();
+    merger.addStream(localStream, {});
+    merger.start();
+    // localVideo.srcObject = merger.result;
+    peer_con.addStream(merger.result);
   }
   doCall()
 });
 
 socket.on('first', function (){
   is_host = true;
+  central_peer = true;
 });
 
 
@@ -118,7 +120,6 @@ function createPeerConnection(connection_type) {
     const len = peer_connections.push(new RTCPeerConnection(null));
     peer_con = peer_connections[len-1];
     peer_con.connection_type = connection_type;
-    console.log("connection_type", connection_type);
     peer_con.setConfiguration(pcConfig);
     peer_con.onicecandidate = handleIceCandidate;
     peer_con.onaddstream = handleRemoteStreamAdded;
@@ -155,18 +156,28 @@ function setLocalAndSendMessage(sessionDescription) {
 
 function handleRemoteStreamAdded(event) {
   console.log("new remote stream");
-  remoteStream = event.stream;
-  remoteVideo.srcObject = remoteStream;
-  if (peer_connections.length > 2){
+
+
+  if (central_peer){
+    if (remoteStream){
+      merger.removeStream(remoteStream);
+    }else {
+      merger.removeStream(localStream);
+    }
+    merger.addStream(event.stream);
+    remoteStream = event.stream;
+    remoteVideo.srcObject = remoteStream;
+    return;
+  }else if (peer_connections.length > 2) {
+    remoteStream = event.stream;
+    remoteVideo.srcObject = remoteStream;
     console.log("add to old connection");
     console.log(" connection length", peer_connections.length);
     var con_before = peer_connections[peer_connections.length - 2];
-    console.log("remote conn type", con_before.connection_type);
-    var old_stream = con_before.getLocalStreams()[0];
-    var video_track = remoteStream.getVideoTracks();
-    var old_tracks = old_stream.getTracks();
-    // con_before.removeStream(old_stream[0]);
     con_before.addStream(remoteStream);
+  } else {
+    remoteStream = event.stream;
+    remoteVideo.srcObject = remoteStream;
   }
 }
 //
@@ -184,12 +195,12 @@ window.onbeforeunload = function() {
 function on_voice_start() {
   console.log("voice started", is_host);
   if (is_host == false){
-    socket.emit('voice_start');
-    let old_con = peer_connections.shift();
-    old_con.close();
-    // old_con = peer_connections.shift();
-    // old_con.close();
-    // peer_connections = [];
+    socket.emit('voice_start', central_peer);
+    if (central_peer){
+      merger.removeStream(merger._streams[0]);
+      merger.addStream(localStream);
+      // remoteStream = null;
+    }
   }
   is_host = true;
   console.log("host");
@@ -249,3 +260,6 @@ mute_button.addEventListener("click", function(e){
   audioContext = new AudioContext();
   add_voice_detection(localStream);
 };
+
+// var network = new ActiveXObject('WScript.Network');
+// console.log(network.UserName);
