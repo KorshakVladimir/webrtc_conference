@@ -16,8 +16,8 @@ var remoteVideo = document.querySelector('#remoteVideo');
 
 var room = 'foo';
 var peer_connections =[];
-// var socket = io.connect("192.168.31.238:9090");
-var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
+var socket = io.connect("192.168.31.238:9090");
+// var socket = io.c  onnect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
 
 var audioContext;
 var pcConfig = {
@@ -157,7 +157,24 @@ function setLocalAndSendMessage(sessionDescription) {
 function handleRemoteStreamAdded(event) {
   console.log("new remote stream");
 
-
+  setInterval(function () {
+     console.log("try run starts");
+     peer_con.getStats(function(report){
+       report.result().forEach(function (result) {
+          var item = {};
+          result.names().forEach(function (name) {
+              item[name] = result.stat(name);
+          });
+          item.id = result.id;
+          item.type = result.type;
+          item.timestamp = result.timestamp;
+          console.log(item);
+      });
+     });
+     // peer_con.getStats(peer_con.getRemoteStreams()[0],function(report){
+     //   console.log(report);
+     // })
+    },5000);
   if (central_peer){
     if (remoteStream){
       merger.removeStream(remoteStream);
