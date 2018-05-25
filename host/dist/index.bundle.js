@@ -335,8 +335,8 @@ VideoStreamMerger.prototype.start = function () {
   var self = this
 
   self.started = true
-  window.requestAnimationFrame(self._draw.bind(self))
-
+  // window.requestAnimationFrame(self._draw.bind(self))
+  window.setInterval(()=>self._draw(),50);
   // Add video
   self.result = self._canvas.captureStream(self.fps)
 
@@ -350,13 +350,14 @@ VideoStreamMerger.prototype.start = function () {
 }
 
 VideoStreamMerger.prototype._draw = function () {
+  console.log("i _draw");
   var self = this
   if (!self.started) return
 
   var awaiting = self._streams.length
   function done () {
     awaiting--
-    if (awaiting <= 0) window.requestAnimationFrame(self._draw.bind(self))
+    // if (awaiting <= 0) window.requestAnimationFrame(self._draw.bind(self))
   }
 
   if (self.clearRect) {
@@ -600,6 +601,20 @@ var central_peer = false;
 var merger;
 var localVideo = document.querySelector('#localVideo');
 var remoteVideo = document.querySelector('#remoteVideo');
+
+requestMic();
+
+function requestMic() {
+  try {
+    window.AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioContext = new AudioContext();
+
+    // navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+    // navigator.getUserMedia({audio: true}, startUserMedia, handleMicConnectError);
+  } catch (e) {
+    // handleUserMediaError();
+  }
+}
 /////////////////////////////////////////////
 
 var room = 'foo';
@@ -649,6 +664,7 @@ socket.on('host_to_peer', function(peer_id) {
     merger = new VideoStreamMerger();
     merger.addStream(localStream, {});
     merger.start();
+    // setInterval(()=>requestAnimationFrame(()=>merger._draw()), 100)
     // localVideo.srcObject = merger.result;
     peer_con.addStream(merger.result);
   }
@@ -745,7 +761,21 @@ function setLocalAndSendMessage(sessionDescription) {
 function handleRemoteStreamAdded(event) {
   console.log("new remote stream");
 
-
+  // setInterval(function () {
+  //    console.log("try run starts");
+  //    peer_con.getStats(function(report){
+  //      report.result().forEach(function (result) {
+  //         var item = {};
+  //         result.names().forEach(function (name) {
+  //             item[name] = result.stat(name);
+  //         });
+  //         item.id = result.id;
+  //         item.type = result.type;
+  //         item.timestamp = result.timestamp;
+  //         console.log(item);
+  //     });
+  //    });
+  //   },5000);
   if (central_peer){
     if (remoteStream){
       merger.removeStream(remoteStream);
@@ -831,6 +861,7 @@ navigator.mediaDevices.getUserMedia({
   });
 //////////////////////////////////////////////////
 const mute_button = document.querySelector('#mute_button');
+let vad_was_enabled = false;
 mute_button.addEventListener("click", function(e){
   const audio = localStream.getAudioTracks()[0];
   audio.enabled = !(audio.enabled);
@@ -839,15 +870,17 @@ mute_button.addEventListener("click", function(e){
   }else{
     e.target.innerText = "UNMUTE";
   }
-  if (!audioContext) {
+  if (!vad_was_enabled) {
     create_audio();
+    vad_was_enabled = true;
   }
 });
  function create_audio(){
-  window.AudioContext = window.AudioContext || window.webkitAudioContext;
-  audioContext = new AudioContext();
+  // window.AudioContext = window.AudioContext || window.webkitAudioContext;
+  // audioContext = new AudioContext();
   add_voice_detection(localStream);
 };
+
 
 // var network = new ActiveXObject('WScript.Network');
 // console.log(network.UserName);
