@@ -43,23 +43,6 @@ io.sockets.on('connection', function(socket) {
     if (!is_central){
       create_connection(socket.id, clients[0]);
     }
-    //   const old_host = clients.shift();
-    //   const pos_el = clients.indexOf(socket.id);
-    //   clients.splice(pos_el, 1);
-    //   clients = [socket.id, ...clients, old_host];
-    //   create_connection(clients[0], clients[1]);
-    //   create_connection(clients[1], clients[2]);
-    //   return;
-    //   const pos_el = clients.indexOf(socket.id);
-    //   if (pos_el != clients.length - 1 && pos_el > 1 ){
-    //     restore_connection(socket.id);
-    //   }else{
-    //     clients.splice(pos_el, 1);
-    //   }
-    //   const old_host = clients.shift();
-    //   clients = [socket.id, ...clients, old_host];
-    //   create_connection(clients[0], clients[1]);
-    //   create_connection(clients[clients.length-2], clients[clients.length-1]);
   });
 
   socket.on('message', function(peer, message) {
@@ -75,7 +58,8 @@ io.sockets.on('connection', function(socket) {
         io.to(socket.id).emit('first');
         return
     }
-    const last = clients.slice(-2)[0];
+    // const last = clients.slice(-2)[0];
+    const last = clients[0];
     io.to(socket.id).emit('peer_to_host', last, socket.id);
     io.to(last).emit("host_to_peer", socket.id);
   });
