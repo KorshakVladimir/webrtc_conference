@@ -263,6 +263,8 @@ VideoStreamMerger.prototype.addStream = function (mediaStream, opts) {
     videoElement.autoplay = true
     videoElement.muted = true
     videoElement.srcObject = mediaStream
+    videoElement.setAttribute('style', 'position:fixed; left: 0px; top:0px; pointer-events: none; opacity:0')
+    document.body.appendChild(videoElement)
 
     if (!stream.mute) {
       stream.audioSource = self._audioCtx.createMediaStreamSource(mediaStream)
@@ -335,8 +337,8 @@ VideoStreamMerger.prototype.start = function () {
   var self = this
 
   self.started = true
-  // window.requestAnimationFrame(self._draw.bind(self))
-  window.setInterval(()=>self._draw(),50);
+  window.requestAnimationFrame(self._draw.bind(self))
+  // setInterval(() =>{ self._draw.bind(self)()}, 50)
   // Add video
   self.result = self._canvas.captureStream(self.fps)
 
@@ -350,14 +352,13 @@ VideoStreamMerger.prototype.start = function () {
 }
 
 VideoStreamMerger.prototype._draw = function () {
-  console.log("i _draw");
   var self = this
   if (!self.started) return
 
   var awaiting = self._streams.length
   function done () {
     awaiting--
-    // if (awaiting <= 0) window.requestAnimationFrame(self._draw.bind(self))
+    if (awaiting <= 0) window.requestAnimationFrame(self._draw.bind(self))
   }
 
   if (self.clearRect) {
@@ -598,7 +599,7 @@ var peer;
 var is_host = false;
 var central_peer = false;
 
-var merger;
+var merger = new VideoStreamMerger();;
 var localVideo = document.querySelector('#localVideo');
 var remoteVideo = document.querySelector('#remoteVideo');
 
@@ -642,7 +643,31 @@ socket.on('remove_host', function (){
   is_host = false;
 });
 
+function remove_connection_for_main_peer(peer_connections){
+  for (let i in peer_connections) {
+    if (peer_connections[i].signalingState  == "closed"){
+      peer_connections.splice(i, 1);
+      remove_connection_for_main_peer(peer_connections)
+    }
+  }
+}
+
+function close_connection_for_main_peer(){
+  console.log("delete connection");
+  if (!central_peer){
+    return;
+  }
+  for (let i in peer_connections) {
+    const con = peer_connections[i]
+    if (con.connection_type  == "peer_to_host"){
+      con.close()
+    }
+  }
+  remove_connection_for_main_peer(peer_connections)
+}
+
 socket.on('peer_to_host', function (peer_id, my_id){
+  close_connection_for_main_peer();
   console.log("my socket id", my_id);
   console.log("peer_to_host to", peer_id);
   peer = peer_id;
@@ -656,17 +681,17 @@ socket.on('host_to_peer', function(peer_id) {
 
   if (!central_peer) {
     if (!is_host){
-      peer_con.addStream(remoteStream);
+       peer_con.addStream(remoteStream);
     }else{
        peer_con.addStream(localStream);
     }
-  } else{
-    merger = new VideoStreamMerger();
+  } else {
+
     merger.addStream(localStream, {});
     merger.start();
-    // setInterval(()=>requestAnimationFrame(()=>merger._draw()), 100)
-    // localVideo.srcObject = merger.result;
+    console.log("merger stream added");
     peer_con.addStream(merger.result);
+    remoteVideo.srcObject = merger.result;
   }
   doCall()
 });
@@ -784,7 +809,7 @@ function handleRemoteStreamAdded(event) {
     }
     merger.addStream(event.stream);
     remoteStream = event.stream;
-    remoteVideo.srcObject = remoteStream;
+    // remoteVideo.srcObject = remoteStream;
     return;
   }else if (peer_connections.length > 2) {
     remoteStream = event.stream;
@@ -881,7 +906,10 @@ mute_button.addEventListener("click", function(e){
   add_voice_detection(localStream);
 };
 
-
+const remove_button = document.querySelector('#remove_button');
+ remove_button.addEventListener("click", function(e){
+   peer_connections[peer_connections.length-1].close();
+ })
 // var network = new ActiveXObject('WScript.Network');
 // console.log(network.UserName);
 
