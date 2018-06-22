@@ -316,9 +316,9 @@ mute_button.addEventListener("click", function(e){
   add_voice_detection(localStream);
 };
 
-const remove_button = document.querySelector('#remove_button');
- remove_button.addEventListener("click", function(e){
-   peer_connections[peer_connections.length-1].close();
- })
+// const remove_button = document.querySelector('#remove_button');
+//  remove_button.addEventListener("click", function(e){
+//    peer_connections[peer_connections.length-1].close();
+//  })
 // var network = new ActiveXObject('WScript.Network');
 // console.log(network.UserName);
