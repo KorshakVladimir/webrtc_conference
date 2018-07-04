@@ -16,19 +16,21 @@ var app = http.createServer(options, function(req, res) {
 }).listen(9090);
 
 var io = socketIO.listen(app);
-var clients = {};
+var network = [];
+var central_peer_id = '';
 
-var current_host = '';
+let c_sound_peer_ids  = [];
+let c_video_peer_ids  = [];
 
-function  new_peer(sock_id){
+function  get_new_peer(sock_id){
   return {"value": sock_id, "sub_network":[]}
 }
 
-function create_connection(from_peer, to_peer){
+function create_connection(from_peer, to_peer, to_main, sound_only){
   const peer_host = from_peer;
   const peer_client = to_peer;
   console.log("connect to host_to_peer", peer_host ,"to", peer_client.value);
-  io.to(peer_host).emit("host_to_peer", peer_client.value);
+  io.to(peer_host).emit("host_to_peer", peer_client.value, to_main, sound_only);
   console.log("connect to peer_to_host", peer_client.value ,"to", peer_host);
   io.to(peer_client.value).emit("peer_to_host", peer_host);
 }
@@ -54,17 +56,28 @@ io.sockets.on('connection', function(socket) {
     socket.emit('log', array);
   }
 
-  socket.on('voice_start', function(is_central) {
+  socket.on('remove_stream', function(stream_id) {
+    io.to(network[0].value).emit('remove_stream', stream_id, socket.id);
+    const pos = c_sound_peer_ids.indexOf(socket.id);
+    c_sound_peer_ids.splice(pos, 1);
+  });
+  socket.on('voice_start', function(is_central, to_main, sound_only) {
     console.log("voice_start  for central ", is_central);
-    if (clients.value == ''){
+    if (network.value == ''){
       return;
     }
-    socket.broadcast.emit('remove_host');
     if (!is_central){
-      create_connection(socket.id, clients);
+      c_sound_peer_ids.push(socket.id);
+      create_connection(socket.id, network[0], to_main, sound_only);
     }
   });
 
+  socket.on('add_video_to_central', function() {
+      create_connection(socket.id, network[0], true, false);
+  });
+  socket.on('close_video_to_central', function(peer_id) {
+      io.to(peer_id).emit('close_video_to_central');
+  });
   socket.on('message', function(peer, message) {
     io.to(peer).emit('message', message);
   });
@@ -72,20 +85,27 @@ io.sockets.on('connection', function(socket) {
   socket.on('create or join', function(room) {
     // clients.push(socket.id);
     socket.join(room);
-    io.clients((error, clients) =>{
-      console.log(clients.length);
-    })
-    if (Object.keys(clients).length == 0){
-        clients = new_peer(socket.id);
-        io.to(socket.id).emit('first');
-        return
+    if (network.length == 0) {
+      network.push(get_new_peer(socket.id));
+      io.to(socket.id).emit('first');
+    } else {
+      // const last = clients.slice(-2)[0];
+      const peer = get_peer(network);
+      peer.sub_network.push(get_new_peer(socket.id));
+      const last = peer.value;
+      io.to(socket.id).emit('peer_to_host', last, socket.id);
+      io.to(last).emit("host_to_peer", socket.id);
+      if (c_video_peer_ids.length < 3) {
+        setTimeout(()=>{
+          c_video_peer_ids.push(socket.id);
+          create_connection(socket.id, network[0], true, false)
+        }, 2000)
+      }
     }
-    // const last = clients.slice(-2)[0];
-    const peer = get_peer([clients]);
-    peer.sub_network.push(new_peer(socket.id));
-    const last = peer.value;
-    io.to(socket.id).emit('peer_to_host', last, socket.id);
-    io.to(last).emit("host_to_peer", socket.id);
+
+  });
+  socket.on('mute_own_channel', function(peer_id, array_index) {
+      io.to(peer_id).emit('mute_own_channel', array_index);
   });
 
   // socket.on('ipaddr', function() {
