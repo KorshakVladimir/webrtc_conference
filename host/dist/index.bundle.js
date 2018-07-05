@@ -859,7 +859,9 @@ socket.on('first', function (sock_id){
 });
 
 function add_sound_track(event, new_stream){
-  tempVideo.srcObject = new_stream; // very important
+  // tempVideo.srcObject = new_stream; // very important
+  const video_el = document.createElement("video"); // todo destroy element somehow
+  video_el.srcObject = new_stream;
   const source = audioContext.createMediaStreamSource(new_stream);
   const gain = audioContext.createGain();
   gain.gain.value = 1;
@@ -871,6 +873,7 @@ function add_sound_track(event, new_stream){
       gain.connect(free_slot.dest);
 
       free_slot.connection = event.target;
+      free_slot.state = "connected";
       if (central_peer && !free_slot.connection.host_id){
         free_slot.connection.host_id = current_sock_id;
       }
