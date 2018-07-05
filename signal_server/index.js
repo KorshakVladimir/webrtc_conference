@@ -50,7 +50,7 @@ function get_peer(cur_el_s){
 }
 
 setInterval(()=>{
-  if (last_speaker && c_sound_peer_ids.length > 4){
+  if ((last_speaker && c_video_peer_ids.length == 4) && (c_video_peer_ids.indexOf(last_speaker) == -1)){
     for (let i=0;i<4; i++){
       if (i < c_video_peer_ids.length){
         const current_viedo = c_video_peer_ids[i];
@@ -59,13 +59,13 @@ setInterval(()=>{
           io.to(current_viedo).emit('close_video_to_central');
           create_connection(last_speaker, network[0], true, false, i)
           c_video_peer_ids.splice(i, 1, last_speaker);
-
+          break;
         }
       }
     }
     last_speaker = ''
   }
-}, 1000)
+}, 2000)
 
 io.sockets.on('connection', function(socket) {
   function log() {
@@ -86,7 +86,9 @@ io.sockets.on('connection', function(socket) {
     }
     if (!is_central){
       c_sound_peer_ids.push(socket.id);
-      last_speaker = socket.id;
+      setTimeout(()=>{
+        last_speaker = socket.id;
+      },1000)
       create_connection(socket.id, network[0], to_main, sound_only);
     }
   });

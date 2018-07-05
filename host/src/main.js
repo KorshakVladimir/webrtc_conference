@@ -59,6 +59,7 @@ socket.on('message', function(message) {
     peer_con.setRemoteDescription(new RTCSessionDescription(message));
     doAnswer();
   } else if (message.type === 'answer') {
+    console.log("3 answer")
     peer_con.setRemoteDescription(new RTCSessionDescription(message));
   } else if (message.type === 'candidate') {
     var candidate = new RTCIceCandidate({
@@ -66,6 +67,7 @@ socket.on('message', function(message) {
       candidate: message.candidate
     });
     peer_con.addIceCandidate(candidate);
+    console.log("4 candidate")
   } else if (message === 'bye') {
     handleRemoteHangup();
   }
@@ -159,7 +161,7 @@ function remove_connection_for_main_peer(peer_connections){
 }
 
 function close_connection_for_main_peer(){
-  if (!central_peer){
+  if (central_peer){
     return;
   }
   for (let i in peer_connections) {
@@ -177,7 +179,7 @@ socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id){
     current_sock_id = sock_id;
   }
   close_connection_for_main_peer();
-  console.log("peer_to_host to", peer_id);
+  console.log(" 1 peer_to_host to", peer_id);
   // if (central_peer){
   //   c_sound_peer_ids.push(peer_id);
   //   if (c_video_peer_ids.length < 5) {
@@ -186,7 +188,7 @@ socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id){
   // }
   peer = peer_id;
   createPeerConnection('peer_to_host');
-
+  console.log(" 2 create connection , video pos", video_slot_pos, "host id",  peer_id);
   peer_con.host_id = peer_id;
   peer_con.video_slot_pos = video_slot_pos;
 });
@@ -310,9 +312,9 @@ function handleRemoteStreamAdded(event) {
   //    });
   //   },5000);
   if (central_peer){
-
     const new_remote_stream = event.stream;
     const video_track  = new_remote_stream.getVideoTracks().length;
+    console.log(" 5 new stream video", video_track);
     if (video_track) {
       const video_slot_pos = event.target.video_slot_pos;
       merger.addStream(event.stream, {
@@ -448,9 +450,16 @@ mute_button.addEventListener("click", function(e){
       conn_to_central.close();
       is_host = false;
       conn_to_central = '';
-      console.log("c stream removed");
-      peer_connections[peer_connections.length-1].close();
-      peer_connections.splice(peer_connections.length-1, 1);
+      // console.log("c stream removed");
+      // for (let i in peer_connections){
+      //   const current_con  = peer_connections[i];
+      //
+      //   if (current_con.connection_type == "to_main_host_sound"){
+      //     current_con.close();
+      //     peer_connections.splice(i, 1);
+      //     break;
+      //   }
+      // }
       socket.emit('remove_stream', localStream.id );
     }
     //for central
