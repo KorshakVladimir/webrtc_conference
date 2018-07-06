@@ -723,8 +723,10 @@ socket.on('remove_stream', function (stream_id, soket_id){
   for (let i in sound_track_slots){
     const slot = sound_track_slots[i];
     if (slot.connection && slot.connection.host_id == soket_id){
-      slot.state = "closed";
+      slot.state = "free";
       slot.gain.disconnect(slot.dest);
+      slot.gain = '';
+      slot.connection = ''
       break;
     }
   }
@@ -866,9 +868,10 @@ function add_sound_track(event, new_stream){
   const gain = audioContext.createGain();
   gain.gain.value = 1;
   source.connect(gain);
-  for (let i=0; i<=10; i++){
+  for (let i in sound_track_slots){
     const free_slot = sound_track_slots[i];
-    if (!free_slot.connection || free_slot.state == "closed"){
+    if (free_slot.state == "free"){
+    // if (!free_slot.connection){
       free_slot.gain = gain;
       gain.connect(free_slot.dest);
 
@@ -1043,17 +1046,11 @@ mute_button.addEventListener("click", function(e){
       conn_to_central.close();
       is_host = false;
       conn_to_central = '';
-      // console.log("c stream removed");
-      // for (let i in peer_connections){
-      //   const current_con  = peer_connections[i];
-      //
-      //   if (current_con.connection_type == "to_main_host_sound"){
-      //     current_con.close();
-      //     peer_connections.splice(i, 1);
-      //     break;
-      //   }
-      // }
       socket.emit('remove_stream', localStream.id );
+      const remote_sound_track = remoteStream.getAudioTracks();
+      for (let i in remote_sound_track){
+        remote_sound_track[i].enabled = true;
+      }
     }
     //for central
     if (central_peer) {
@@ -1068,11 +1065,11 @@ mute_button.addEventListener("click", function(e){
 //   add_voice_detection(localStream);
 // };
 
-const remove_button = document.querySelector('#remove_button');
- remove_button.addEventListener("click", function(e){
-  peer_connections[peer_connections.length-1].close();
-  console.log(sound_track_slots)
- });
+// const remove_button = document.querySelector('#remove_button');
+//  remove_button.addEventListener("click", function(e){
+//   peer_connections[peer_connections.length-1].close();
+//   console.log(sound_track_slots)
+//  });
 
 
 
