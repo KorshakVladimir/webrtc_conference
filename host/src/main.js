@@ -43,7 +43,7 @@ var audioContext;
 var pcConfig = {
   'iceServers': [
     {'urls': 'stun:stun.l.google.com:19302'},
-    // {'urls': 'turn:numb.viagenie.ca'},
+    {'urls': 'turn:numb.viagenie.ca', "username":"saninosan@gmail.com","credential":"sanosano7"},
     {'urls': 'turn:d1.synergy.net:3478',"username":"synergy","credential":"q1w2e3"}
     // "turn:my_username@<turn_server_ip_address>", "credential":"my_password"
   ]
