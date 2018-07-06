@@ -65,7 +65,7 @@ setInterval(()=>{
     }
     last_speaker = ''
   }
-}, 2000)
+}, 6000)
 
 io.sockets.on('connection', function(socket) {
   function log() {
