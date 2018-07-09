@@ -68,7 +68,10 @@ socket.on('message', function(message) {
       candidate: message.candidate
     });
     peer_con.addIceCandidate(candidate);
-    console.log("4 candidate")
+    console.log("4 candidate");
+    setTimeout(()=>{
+      socket.emit('connection_complete');
+    },200);
   } else if (message === 'bye') {
     handleRemoteHangup();
   }
