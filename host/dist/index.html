@@ -17,6 +17,7 @@
 <body>
 
   <h1>Realtime communication with WebRTC</h1>
+
   <!--<button id="remove_button">remove</button>-->
   <div id="videos">
     <video id="localVideo" autoplay playsinline height="200px" class="local_video" controls muted></video>
@@ -24,6 +25,7 @@
     <video id="tempVideo" hidden autoplay playsinline   height="600px" width="800px" controls muted></video>
   </div>
   <button id="mute_button">UNMUTE</button>
+   <audio id="audio_control" controls autoplay>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.1.0/socket.io.js"></script>
   <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
