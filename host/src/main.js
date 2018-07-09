@@ -69,9 +69,6 @@ socket.on('message', function(message) {
     });
     peer_con.addIceCandidate(candidate);
     console.log("4 candidate");
-    setTimeout(()=>{
-      socket.emit('connection_complete');
-    },200);
   } else if (message === 'bye') {
     handleRemoteHangup();
   }
@@ -96,12 +93,19 @@ function  createPeerConnection(connection_type) {
     peer_con.onicecandidate = handleIceCandidate;
     peer_con.onaddstream = handleRemoteStreamAdded;
     peer_con.onremovestream = handleRemoteStreamRemoved;
+    peer_con.onsignalingstatechange = handleOnsignalingstatechange
   } catch (e) {
     console.log(e);
     return;
   }
 }
 
+function handleOnsignalingstatechange(event){
+  console.log(event.target.signalingState );
+  if (event.target.signalingState == "stable" && event.target.connection_type == 'peer_to_host'){
+    socket.emit('connection_complete');
+  }
+}
 function handleIceCandidate(event) {
   if (event.candidate) {
     sendMessage({

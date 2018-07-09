@@ -92,9 +92,7 @@ io.sockets.on('connection', function(socket) {
   }
   socket.on('connection_complete', function(){
     queue_in_processing = false;
-    procces_queue();
-    console.log("queue processing stop");
-  })
+  });
   socket.on('remove_stream', function(stream_id) {
     io.to(network[0].value).emit('remove_stream', stream_id, socket.id);
     const pos = c_sound_peer_ids.indexOf(socket.id);
