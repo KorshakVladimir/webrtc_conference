@@ -692,7 +692,7 @@ function  createPeerConnection(connection_type) {
 
 function handleOnsignalingstatechange(event){
   console.log(event.target.signalingState );
-  if (event.target.signalingState == "stable" && event.target.connection_type == 'peer_to_host'){
+  if (event.target.signalingState == "stable" && event.target.connection_type != 'peer_to_host'){
     socket.emit('connection_complete');
   }
 }
