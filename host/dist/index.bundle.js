@@ -683,19 +683,23 @@ function  createPeerConnection(connection_type) {
     peer_con.onicecandidate = handleIceCandidate;
     peer_con.onaddstream = handleRemoteStreamAdded;
     peer_con.onremovestream = handleRemoteStreamRemoved;
-    peer_con.onsignalingstatechange = handleOnsignalingstatechange
+    peer_con.oniceconnectionstatechange = (event)=>{
+      if (event.target.iceConnectionState == "completed" && event.target.connection_type != 'peer_to_host'){
+        socket.emit('connection_complete');
+      }
+    }
   } catch (e) {
     console.log(e);
     return;
   }
 }
 
-function handleOnsignalingstatechange(event){
-  console.log(event.target.signalingState );
-  if (event.target.signalingState == "stable" && event.target.connection_type != 'peer_to_host'){
-    socket.emit('connection_complete');
-  }
-}
+// function handleOnsignalingstatechange(event){
+//   console.log("signal state",event.target.signalingState );
+//   if (event.target.signalingState == "stable" && event.target.connection_type != 'peer_to_host'){
+//     socket.emit('connection_complete');
+//   }
+// }
 function handleIceCandidate(event) {
   if (event.candidate) {
     sendMessage({
