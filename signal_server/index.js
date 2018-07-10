@@ -30,6 +30,7 @@ function  get_new_peer(sock_id){
 }
 
 function procces_queue(){
+  console.log('pool lenth', connection_queue.length);
   if (connection_queue.length == 0 || queue_in_processing){
     return;
   }
@@ -51,7 +52,7 @@ function create_connection(from_peer, to_peer, to_main, sound_only, video_slot_p
     "video_slot_pos":video_slot_pos
   });
 }
-setInterval(procces_queue, 100);
+setInterval(procces_queue, 500);
 function get_peer(cur_el_s){
   let candidates =[];
   for (let i = 0; i < cur_el_s.length; i++){
@@ -82,7 +83,7 @@ setInterval(()=>{
     }
     last_speaker = ''
   }
-}, 2000)
+}, 500)
 
 io.sockets.on('connection', function(socket) {
   function log() {
@@ -91,6 +92,7 @@ io.sockets.on('connection', function(socket) {
     socket.emit('log', array);
   }
   socket.on('connection_complete', function(){
+    console.log("connection_complete");
     queue_in_processing = false;
   });
   socket.on('remove_stream', function(stream_id) {
