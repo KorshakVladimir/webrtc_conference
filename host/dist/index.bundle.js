@@ -684,7 +684,8 @@ function  createPeerConnection(connection_type) {
     peer_con.onaddstream = handleRemoteStreamAdded;
     peer_con.onremovestream = handleRemoteStreamRemoved;
     peer_con.oniceconnectionstatechange = (event)=>{
-      if (event.target.iceConnectionState == "completed" && event.target.connection_type != 'peer_to_host'){
+      console.log(event.target.iceConnectionState);
+      if (event.target.iceConnectionState == "completed"){
         socket.emit('connection_complete');
       }
     }
