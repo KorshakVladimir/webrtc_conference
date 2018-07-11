@@ -30,10 +30,11 @@ function  get_new_peer(sock_id){
 }
 
 function procces_queue(){
-  console.log('pool lenth', connection_queue.length);
+
   if (connection_queue.length == 0 || queue_in_processing){
     return;
   }
+
   console.log("task start");
   queue_in_processing = true;
   const con_el = connection_queue.shift();
@@ -51,6 +52,7 @@ function create_connection(from_peer, to_peer, to_main, sound_only, video_slot_p
     "sound_only":sound_only,
     "video_slot_pos":video_slot_pos
   });
+  console.log('pool lenth', connection_queue.length);
 }
 setInterval(procces_queue, 500);
 function get_peer(cur_el_s){
@@ -129,7 +131,7 @@ io.sockets.on('connection', function(socket) {
     socket.join(room);
     io.of('/chat').clients((error, clients) => {
       if (error) throw error;
-      console.log(clients.length); // => [PZDoMHjiu8PYfRiKAAAF, Anw2LatarvGVVXEIAAAD]
+      console.log("connection length", clients.length); // => [PZDoMHjiu8PYfRiKAAAF, Anw2LatarvGVVXEIAAAD]
     })
     if (network.length == 0) {
       network.push(get_new_peer(socket.id));
