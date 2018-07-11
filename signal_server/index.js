@@ -127,6 +127,10 @@ io.sockets.on('connection', function(socket) {
   socket.on('create or join', function(room) {
     // clients.push(socket.id);
     socket.join(room);
+    io.of('/chat').clients((error, clients) => {
+      if (error) throw error;
+      console.log(clients.length); // => [PZDoMHjiu8PYfRiKAAAF, Anw2LatarvGVVXEIAAAD]
+    })
     if (network.length == 0) {
       network.push(get_new_peer(socket.id));
       io.to(socket.id).emit('first', socket.id);
