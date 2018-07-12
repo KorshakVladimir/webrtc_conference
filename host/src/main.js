@@ -99,7 +99,7 @@ function  createPeerConnection(connection_type, peer_id, badge) {
     peer_con.oniceconnectionstatechange = (event)=>{
       console.log("iceConnectionState", event.target.iceConnectionState);
       if (event.target.iceConnectionState == "completed"){
-        socket.emit('connection_complete',peer_id, badge);
+        socket.emit('connection_complete', peer_id, badge);
       }
     }
   } catch (e) {
@@ -157,8 +157,8 @@ socket.on('remove_stream', function (stream_id, soket_id){
 });
 
 socket.on('close_video_to_central', function (peer_id){
-  peer_connections[peer_id+"video"].close();
-  delete peer_connections[peer_id+"video"];
+  peer_connections[peer_id+"to_main"].close();
+  delete peer_connections[peer_id+"to_main"];
 });
 
 function close_connection_for_main_peer(){
