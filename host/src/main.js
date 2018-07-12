@@ -179,6 +179,9 @@ function close_connection_for_main_peer(){
 socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id, badge){
   if (sock_id){
     current_sock_id = sock_id;
+    Raven.setUserContext({
+        sock_id: sock_id,
+    })
     document.getElementById("client_id").innerText= "id - " +sock_id;
   }
   close_connection_for_main_peer();
@@ -297,6 +300,9 @@ socket.on('first', function (sock_id){
     socket.emit("restart");
   })
   current_sock_id = sock_id;
+  Raven.setUserContext({
+      sock_id: current_sock_id,
+  })
   document.getElementById("client_id").innerText= "id - " + sock_id;
   is_host = false;
   central_peer = true;

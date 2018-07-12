@@ -689,7 +689,7 @@ function  createPeerConnection(connection_type, peer_id, badge) {
     peer_con.oniceconnectionstatechange = (event)=>{
       console.log("iceConnectionState", event.target.iceConnectionState);
       if (event.target.iceConnectionState == "completed"){
-        socket.emit('connection_complete',peer_id, badge);
+        socket.emit('connection_complete', peer_id, badge);
       }
     }
   } catch (e) {
@@ -747,8 +747,8 @@ socket.on('remove_stream', function (stream_id, soket_id){
 });
 
 socket.on('close_video_to_central', function (peer_id){
-  peer_connections[peer_id+"video"].close();
-  delete peer_connections[peer_id+"video"];
+  peer_connections[peer_id+"to_main"].close();
+  delete peer_connections[peer_id+"to_main"];
 });
 
 function close_connection_for_main_peer(){
@@ -769,6 +769,9 @@ function close_connection_for_main_peer(){
 socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id, badge){
   if (sock_id){
     current_sock_id = sock_id;
+    Raven.setUserContext({
+        sock_id: sock_id,
+    })
     document.getElementById("client_id").innerText= "id - " +sock_id;
   }
   close_connection_for_main_peer();
@@ -887,6 +890,9 @@ socket.on('first', function (sock_id){
     socket.emit("restart");
   })
   current_sock_id = sock_id;
+  Raven.setUserContext({
+      sock_id: current_sock_id,
+  })
   document.getElementById("client_id").innerText= "id - " + sock_id;
   is_host = false;
   central_peer = true;
