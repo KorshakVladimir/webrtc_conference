@@ -157,6 +157,9 @@ socket.on('remove_stream', function (stream_id, soket_id){
 });
 
 socket.on('close_video_to_central', function (peer_id){
+  console.log("close_video_to_central");
+  console.log(peer_connections);
+  console.log(peer_id);
   peer_connections[peer_id+"to_main"].close();
   delete peer_connections[peer_id+"to_main"];
 });
