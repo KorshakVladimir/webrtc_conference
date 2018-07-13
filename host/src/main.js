@@ -50,56 +50,56 @@ var pcConfig = {
 };
 
 
-function sendMessage(message, peer_id, badge) {
-  console.log("Meesage to",peer_id, "badge", badge);
-  socket.emit('message', peer_id, badge, message);
+function sendMessage(message, peer_id, conn_id) {
+  // console.log("Meesage to",peer_id, "conn_id", conn_id);
+  socket.emit('message', peer_id, conn_id, message);
 }
 
 // This client receives a message
-socket.on('message', function(message, peer_id, badge) {
-  console.log("Meesage from ",peer_id, "badge", badge);
+socket.on('message', function(message, peer_id, conn_id) {
+  console.log("Meesage from ",peer_id, "conn_id", conn_id);
   if (message.type === 'offer') {
-    peer_connections[peer_id+badge].setRemoteDescription(new RTCSessionDescription(message));
-    doAnswer(peer_id, badge);
+    peer_connections[conn_id].setRemoteDescription(new RTCSessionDescription(message));
+    doAnswer(peer_id, conn_id);
   } else if (message.type === 'answer') {
-    console.log("3 answer")
-    peer_connections[peer_id+badge].setRemoteDescription(new RTCSessionDescription(message));
+    console.log("3 answer");
+    peer_connections[conn_id].setRemoteDescription(new RTCSessionDescription(message));
   } else if (message.type === 'candidate') {
     var candidate = new RTCIceCandidate({
       sdpMLineIndex: message.label,
       candidate: message.candidate
     });
-    peer_connections[peer_id+badge].addIceCandidate(candidate);
+    peer_connections[conn_id].addIceCandidate(candidate);
     console.log("4 candidate");
   } else if (message === 'bye') {
     handleRemoteHangup();
   }
 });
 
-function doAnswer(peer_id, badge) {
+function doAnswer(peer_id, conn_id) {
   console.log('Sending answer to peer.');
-  peer_connections[peer_id+badge].createAnswer().then(
-    setLocalAndSendMessage.bind({"peer_id": peer_id, "badge": badge}),
+  peer_connections[conn_id].createAnswer().then(
+    setLocalAndSendMessage.bind({"peer_id": peer_id, "conn_id": conn_id}),
     onCreateSessionDescriptionError
   );
 }
 
 /////////////////////////////////////////////////////////
 
-function  createPeerConnection(connection_type, peer_id, badge) {
+function  createPeerConnection(connection_type, peer_id, conn_id) {
   try {
-    peer_connections[peer_id+badge] = new RTCPeerConnection(null);
-    const peer_con = peer_connections[peer_id+badge];
-    peer_con.peer_id = peer_id;
-    peer_con.connection_type = connection_type;
-    peer_con.setConfiguration(pcConfig);
-    peer_con.onicecandidate = handleIceCandidate.bind({"peer_id": peer_id, "badge": badge});
-    peer_con.onaddstream = handleRemoteStreamAdded;
-    peer_con.onremovestream = handleRemoteStreamRemoved;
-    peer_con.oniceconnectionstatechange = (event)=>{
+    const peer_con_1 = new RTCPeerConnection(null);
+    peer_connections[conn_id] = peer_con_1;
+    peer_con_1.peer_id = peer_id;
+    peer_con_1.connection_type = connection_type;
+    peer_con_1.setConfiguration(pcConfig);
+    peer_con_1.onicecandidate = handleIceCandidate.bind({"peer_id": peer_id, "conn_id": conn_id});
+    peer_con_1.onaddstream = handleRemoteStreamAdded;
+    peer_con_1.onremovestream = handleRemoteStreamRemoved;
+    peer_con_1.oniceconnectionstatechange = (event)=>{
       console.log("iceConnectionState", event.target.iceConnectionState);
-      if (event.target.iceConnectionState == "completed"){
-        socket.emit('connection_complete', peer_id, badge);
+      if (event.target.iceConnectionState == "completed") {
+        socket.emit('connection_complete', peer_id, conn_id);
       }
     }
   } catch (e) {
@@ -121,21 +121,21 @@ function handleIceCandidate(event) {
       label: event.candidate.sdpMLineIndex,
       id: event.candidate.sdpMid,
       candidate: event.candidate.candidate
-    }, this.peer_id, this.badge);
+    }, this.peer_id, this.conn_id);
   }
 }
 
 function handleCreateOfferError(event) {}
 
-function doCall(peer_id, badge) {
-  peer_connections[peer_id+badge].createOffer(
-    setLocalAndSendMessage.bind({"peer_id": peer_id, "badge":badge}),
+function doCall(peer_id, conn_id) {
+  peer_connections[conn_id].createOffer(
+    setLocalAndSendMessage.bind({"peer_id": peer_id, "conn_id":conn_id}),
     handleCreateOfferError);
 }
 
 function setLocalAndSendMessage(sessionDescription) {
-  peer_connections[this.peer_id + this.badge].setLocalDescription(sessionDescription);
-  sendMessage(sessionDescription, this.peer_id, this.badge);
+  peer_connections[this.conn_id].setLocalDescription(sessionDescription);
+  sendMessage(sessionDescription, this.peer_id, this.conn_id);
 }
 
 function handleRemoteStreamRemoved(event) {}
@@ -160,8 +160,14 @@ socket.on('close_video_to_central', function (peer_id){
   console.log("close_video_to_central");
   console.log(peer_connections);
   console.log(peer_id);
-  peer_connections[peer_id+"to_main"].close();
-  delete peer_connections[peer_id+"to_main"];
+  const keys = Object.keys(peer_connections);
+  for (let i=0; i<keys; i++){
+    if (peer_connections[i].connection_type == "to_main_host_video"){
+      console.log("close connection", keys[i])
+      peer_connections[i].close();
+      delete peer_connections[i];
+    }
+  }
 });
 
 function close_connection_for_main_peer(){
@@ -172,14 +178,14 @@ function close_connection_for_main_peer(){
   for (let i in keys) {
     const con = peer_connections[keys[i]];
     if (con.connection_type  == "to_main_host_sound"){
-      console.log("delete connection");
+      console.log("close connection", keys[i])
       con.close()
       delete peer_connections[keys[i]]
     }
   }
 }
 
-socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id, badge){
+socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id, conn_id){
   if (sock_id){
     current_sock_id = sock_id;
     Raven.setUserContext({
@@ -188,12 +194,12 @@ socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id, badge){
     document.getElementById("client_id").innerText= "id - " +sock_id;
   }
   close_connection_for_main_peer();
-  console.log(" 1 peer_to_host to", peer_id, badge);
+  console.log(" 1 peer_to_host to", peer_id, conn_id);
   peer = peer_id;
-  createPeerConnection('peer_to_host', peer_id, badge);
+  createPeerConnection('peer_to_host', peer_id, conn_id);
   console.log(" 2 create connection , video pos", video_slot_pos, "host id",  peer_id);
-  peer_connections[peer_id+badge].host_id = peer_id;
-  peer_connections[peer_id+badge].video_slot_pos = video_slot_pos;
+  peer_connections[conn_id].host_id = peer_id;
+  peer_connections[conn_id].video_slot_pos = video_slot_pos;
 });
 
 
@@ -208,6 +214,7 @@ socket.on("close_current_connection", function () {
   const keys = Object.keys(peer_connections);
   for (let i in keys) {
     const con = peer_connections[keys[i]];
+    console.log("close connection", keys[i])
     con.close();
     delete peer_connections[keys[i]]
   }
@@ -256,43 +263,43 @@ function merge_audio(mute_slot=null){
   remoteVideo.srcObject = remote_video_to_show;
 }
 
-socket.on('host_to_peer', function(peer_id, to_main, sound_only, badge) {
+socket.on('host_to_peer', function(peer_id, to_main, sound_only, conn_id) {
   peer = peer_id;
-  console.log("host_to_peer to", peer_id, badge);
+  console.log("host_to_peer to", peer_id, conn_id);
 
   if (to_main){
     if (sound_only){
-        createPeerConnection("to_main_host_sound", peer_id, badge);
+        createPeerConnection("to_main_host_sound", peer_id, conn_id);
         console.log("add stream id ", localStream.id);
         const newStream = new MediaStream();
         newStream.addTrack(localStream.getAudioTracks()[0]);
-        peer_connections[peer_id+badge].addStream(newStream);
-        conn_to_central = peer_connections[peer_id + badge];
+        peer_connections[conn_id].addStream(newStream);
+        conn_to_central = peer_connections[conn_id];
     }else {
-        createPeerConnection("to_main_host_video", peer_id, badge);
+        createPeerConnection("to_main_host_video", peer_id, conn_id);
         console.log("add stream id ", localStream.id);
         const newStream = new MediaStream();
         newStream.addTrack(localStream.getVideoTracks()[0]);
-        peer_connections[peer_id + badge].addStream(newStream);
+        peer_connections[conn_id].addStream(newStream);
     }
   } else {
 
     if (!central_peer) {
-      createPeerConnection("peer transmit to peers", peer_id, badge);
+      createPeerConnection("peer transmit to peers", peer_id, conn_id);
       merger.addStream(remoteStream, {});
       merger.start();
-      peer_connections[peer_id+badge].addStream(merger.result);
+      peer_connections[conn_id].addStream(merger.result);
     } else {
-      createPeerConnection("main transmit to peers", peer_id, badge);
+      createPeerConnection("main transmit to peers", peer_id, conn_id);
       create_audio_track_slots(6);
       main_stream.addTrack(merger.result.getVideoTracks()[0]);
       // remoteVideo.srcObject = remote_video_to_show;
       remoteStream = main_stream;
-      peer_connections[peer_id+badge].addStream(main_stream);
+      peer_connections[conn_id].addStream(main_stream);
       merge_audio();
     }
   }
-  doCall(peer_id, badge)
+  doCall(peer_id, conn_id)
 });
 
 socket.on('first', function (sock_id){

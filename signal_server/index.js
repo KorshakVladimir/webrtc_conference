@@ -36,18 +36,27 @@ function print_connection_pool(){
 
 setInterval(print_connection_pool, 5000);
 
+var create_id = function () {
+  // Math.random should be unique because of its seeding algorithm.
+  // Convert it to base 36 (numbers + letters), and grab the first 9 characters
+  // after the decimal.
+  return '_' + Math.random().toString(36).substr(2, 9);
+};
+
 function create_connection(from_peer, to_peer, to_main, sound_only, video_slot_pos){
-  const badge =  to_main ? "to_main":"" + sound_only ? "sound_only":"";
-  if (connection_pool.indexOf(from_peer +"_"+ to_peer.value + badge)!=-1){
-    console.log("duplicate connection", from_peer +"_"+ to_peer.value + badge)
-  }
-  connection_pool.push(from_peer +"_"+ to_peer.value + badge);
+  // const badge =  to_main ? "to_main":"" + sound_only ? "sound_only":"";
+  // if (connection_pool.indexOf(from_peer +"_"+ to_peer.value + badge)!=-1){
+  //   console.log("duplicate connection", from_peer +"_"+ to_peer.value + badge)
+  // }
+
 
   // connection_pool.push(to_peer.value +"_"+ from_peer + badge);
-  console.log("connect to host_to_peer", from_peer ,"to", to_peer.value, "badge", badge);
-  io.to(from_peer).emit("host_to_peer", to_peer.value, to_main, sound_only, badge);
-  console.log("connect to peer_to_host", to_peer.value ,"to", from_peer, "badge", badge);
-  io.to(to_peer.value).emit("peer_to_host", from_peer, video_slot_pos, to_peer.value, badge);
+  const connection_id = create_id();
+  connection_pool.push(connection_id);
+  console.log("connect to host_to_peer", from_peer ,"to", to_peer.value);
+  io.to(from_peer).emit("host_to_peer", to_peer.value, to_main, sound_only, connection_id);
+  console.log("connect to peer_to_host", to_peer.value ,"to", from_peer);
+  io.to(to_peer.value).emit("peer_to_host", from_peer, video_slot_pos, to_peer.value, connection_id);
 }
 
 function get_peer(cur_el_s){
@@ -93,12 +102,11 @@ io.sockets.on('connection', function(socket) {
     array.push.apply(array, arguments);
     socket.emit('log', array);
   }
-  socket.on('connection_complete', function(peer_id, badge){
+  socket.on('connection_complete', function(peer_id, conn_id){
     // console.log("connection_complete");
-    const data_find = socket.id+"_"+peer_id+badge;
-    const index = connection_pool.indexOf(data_find)
+    const index = connection_pool.indexOf(conn_id)
     if (index == -1){
-      console.log("something wrong with ", data_find)
+      console.log("something wrong with connection don`t found", conn_id)
     } else {
       connection_pool.splice(index, 1);
     }
@@ -129,8 +137,8 @@ io.sockets.on('connection', function(socket) {
   // socket.on('close_video_to_central', function(peer_id) {
 
   // });
-  socket.on('message', function(peer, badge, message) {
-    io.to(peer).emit('message', message, socket.id, badge);
+  socket.on('message', function(peer, conn_id, message) {
+    io.to(peer).emit('message', message, socket.id, conn_id);
   });
 
   socket.on('create or join', function(room) {
