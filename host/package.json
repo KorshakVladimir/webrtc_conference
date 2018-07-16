@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "dependencies": {
+    "assert": "^1.4.1",
+    "minimist": "^1.2.0",
     "video-stream-merger": "^2.9.1",
     "voice-activity-detection": "0.0.5",
     "webpack": "^4.8.1",

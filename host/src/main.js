@@ -1,9 +1,8 @@
 'use strict';
-var vad = require('../node_modules/voice-activity-detection/index.js');
-var VideoStreamMerger = require('video-stream-merger')
+var VideoStreamMerger = require('video-stream-merger');
+let assert = require('assert')
 
 var localStream;
-var peer_con;
 var remoteStream;
 let remote_video_to_show;
 var peer;
@@ -11,33 +10,21 @@ let conn_to_central;
 var is_host = false;
 var central_peer = false;
 let current_sock_id = '';
-let last_activity;
 
 const sound_track_slots = [];
 var merger = new VideoStreamMerger();
 var localVideo = document.querySelector('#localVideo');
 var remoteVideo = document.querySelector('#remoteVideo');
 const main_stream = new MediaStream();
-let c_array_index = '';
-requestMic();
+let connection_for_transmit;
+const AUDIO_SLOTS = 20;
 
-function requestMic() {
-  try {
-    // window.AudioContext = window.AudioContext || window.webkitAudioContext;
-    audioContext = new AudioContext();
-
-    // navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-    // navigator.getUserMedia({audio: true}, startUserMedia, handleMicConnectError);
-  } catch (e) {
-    // handleUserMediaError();
-  }
-}
+audioContext = new AudioContext();
 /////////////////////////////////////////////
 
 var room = 'foo';
 var peer_connections = {};
-var socket = io.connect(window.location.hostname+":9090");
-// var socket = io.connect("ec2-18-220-215-162.us-east-2.compute.amazonaws.com:9090");
+var socket = io.connect(window.location.hostname + ":9090");
 
 var audioContext;
 var pcConfig = {
@@ -51,18 +38,15 @@ var pcConfig = {
 
 
 function sendMessage(message, peer_id, conn_id) {
-  // console.log("Meesage to",peer_id, "conn_id", conn_id);
   socket.emit('message', peer_id, conn_id, message);
 }
 
 // This client receives a message
 socket.on('message', function(message, peer_id, conn_id) {
-  console.log("Meesage from ",peer_id, "conn_id", conn_id);
   if (message.type === 'offer') {
     peer_connections[conn_id].setRemoteDescription(new RTCSessionDescription(message));
     doAnswer(peer_id, conn_id);
   } else if (message.type === 'answer') {
-    console.log("3 answer");
     peer_connections[conn_id].setRemoteDescription(new RTCSessionDescription(message));
   } else if (message.type === 'candidate') {
     var candidate = new RTCIceCandidate({
@@ -70,14 +54,10 @@ socket.on('message', function(message, peer_id, conn_id) {
       candidate: message.candidate
     });
     peer_connections[conn_id].addIceCandidate(candidate);
-    console.log("4 candidate");
-  } else if (message === 'bye') {
-    handleRemoteHangup();
   }
 });
 
 function doAnswer(peer_id, conn_id) {
-  console.log('Sending answer to peer.');
   peer_connections[conn_id].createAnswer().then(
     setLocalAndSendMessage.bind({"peer_id": peer_id, "conn_id": conn_id}),
     onCreateSessionDescriptionError
@@ -97,7 +77,6 @@ function  createPeerConnection(connection_type, peer_id, conn_id) {
     peer_con_1.onaddstream = handleRemoteStreamAdded;
     peer_con_1.onremovestream = handleRemoteStreamRemoved;
     peer_con_1.oniceconnectionstatechange = (event)=>{
-      console.log("iceConnectionState", event.target.iceConnectionState);
       if (event.target.iceConnectionState == "completed") {
         socket.emit('connection_complete', peer_id, conn_id);
       }
@@ -194,10 +173,8 @@ socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id, conn_id){
     document.getElementById("client_id").innerText= "id - " +sock_id;
   }
   close_connection_for_main_peer();
-  console.log(" 1 peer_to_host to", peer_id, conn_id);
   peer = peer_id;
   createPeerConnection('peer_to_host', peer_id, conn_id);
-  console.log(" 2 create connection , video pos", video_slot_pos, "host id",  peer_id);
   peer_connections[conn_id].host_id = peer_id;
   peer_connections[conn_id].video_slot_pos = video_slot_pos;
 });
@@ -220,7 +197,7 @@ socket.on("close_current_connection", function () {
   }
 });
 
-function create_audio_track_slots(stream_count) {
+function create_audio_track_slots(stream, stream_count) {
   if (sound_track_slots.length == stream_count) {
     return;
   }
@@ -230,7 +207,7 @@ function create_audio_track_slots(stream_count) {
     track.gain.gain.value = 1;
     track.dest = audioContext.createMediaStreamDestination();
     track.gain.connect(track.dest);
-    main_stream.addTrack(track.dest.stream.getAudioTracks()[0]);
+    stream.addTrack(track.dest.stream.getAudioTracks()[0]);
     sound_track_slots.push(track);
   }
 }
@@ -245,6 +222,7 @@ function merge_audio(mute_slot=null){
   const sound_dest = audioContext.createMediaStreamDestination();
 
   const audio_streams = source_steam.getAudioTracks();
+  assert.equal(audio_streams.length, AUDIO_SLOTS, "all peers must got the same count if audio slots");
   for (let i in audio_streams){
     if (i == mute_slot){
       console.log("mute own chanel", i);
@@ -270,14 +248,12 @@ socket.on('host_to_peer', function(peer_id, to_main, sound_only, conn_id) {
   if (to_main){
     if (sound_only){
         createPeerConnection("to_main_host_sound", peer_id, conn_id);
-        console.log("add stream id ", localStream.id);
         const newStream = new MediaStream();
         newStream.addTrack(localStream.getAudioTracks()[0]);
         peer_connections[conn_id].addStream(newStream);
         conn_to_central = peer_connections[conn_id];
     }else {
         createPeerConnection("to_main_host_video", peer_id, conn_id);
-        console.log("add stream id ", localStream.id);
         const newStream = new MediaStream();
         newStream.addTrack(localStream.getVideoTracks()[0]);
         peer_connections[conn_id].addStream(newStream);
@@ -286,12 +262,15 @@ socket.on('host_to_peer', function(peer_id, to_main, sound_only, conn_id) {
 
     if (!central_peer) {
       createPeerConnection("peer transmit to peers", peer_id, conn_id);
-      merger.addStream(remoteStream, {});
+      merger.addStream(remoteStream, {"mute": true});
       merger.start();
+      merger.result.removeTrack(merger.result.getAudioTracks()[0])
+      create_audio_track_slots(merger.result, AUDIO_SLOTS);
       peer_connections[conn_id].addStream(merger.result);
+      connection_for_transmit = peer_connections[conn_id]
     } else {
       createPeerConnection("main transmit to peers", peer_id, conn_id);
-      create_audio_track_slots(6);
+      create_audio_track_slots(main_stream, AUDIO_SLOTS);
       main_stream.addTrack(merger.result.getVideoTracks()[0]);
       // remoteVideo.srcObject = remote_video_to_show;
       remoteStream = main_stream;
@@ -308,11 +287,11 @@ socket.on('first', function (sock_id){
   new_button.innerText = "restart";
   new_button.addEventListener("click", function(e) {
     socket.emit("restart");
-  })
+  });
   current_sock_id = sock_id;
   Raven.setUserContext({
       sock_id: current_sock_id,
-  })
+  });
   document.getElementById("client_id").innerText= "id - " + sock_id;
   is_host = false;
   central_peer = true;
@@ -324,7 +303,6 @@ socket.on('first', function (sock_id){
           mute: true // we don't want sound from the screen (if there is any)
         });
   merger.start();
-  console.log(" local stream merger created")
 });
 
 function add_sound_track(event, new_stream){
@@ -348,14 +326,13 @@ function add_sound_track(event, new_stream){
         free_slot.connection.host_id = current_sock_id;
       }
       socket.emit("mute_own_channel", free_slot.connection.host_id, i);
-      break;
+      return;
     }
   }
+  throw "maximum count of sound track"
 }
 
 function handleRemoteStreamAdded(event) {
-  console.log("new remote stream");
-
   // setInterval(function () {
   //    console.log("try run starts");
   //    peer_con.getStats(function(report){
@@ -374,7 +351,6 @@ function handleRemoteStreamAdded(event) {
   if (central_peer){
     const new_remote_stream = event.stream;
     const video_track  = new_remote_stream.getVideoTracks().length;
-    console.log(" 5 new stream video", video_track);
     if (video_track) {
       const video_slot_pos = event.target.video_slot_pos;
       merger.addStream(event.stream, {
@@ -397,65 +373,6 @@ function handleRemoteStreamAdded(event) {
     video_el.srcObject = remoteStream;
   }
 }
-
-//////////////////////////////////////////////////
-// function on_voice_start() {
-//   if (is_host == false) {
-//     // console.log("c voice started", new Date(), new Date().getMilliseconds());
-//     if (central_peer){
-//       add_sound_track({target:{host_id:current_sock_id}}, localStream);
-//     } else {
-//       socket.emit('voice_start', central_peer, true, true);
-//     }
-//     is_host = true;
-//   }
-// }
-
-// function on_voice_stop() {
-//   last_activity = new Date()
-// }
-//
-// setInterval(()=>{
-//   // console.log(new Date() - last_activity);
-//   if (conn_to_central && ((new Date() - last_activity) > 3000)){
-//     conn_to_central.close();
-//     is_host = false;
-//     conn_to_central = '';
-//     console.log("c stream removed");
-//     peer_connections[peer_connections.length-1].close();
-//     peer_connections.splice(peer_connections.length-1, 1);
-//     socket.emit('remove_stream', localStream.id );
-//   }
-//   //for central
-//   if (central_peer && is_host && (new Date() - last_activity) > 3000) {
-//     is_host = false;
-//     console.log("m stream removed");
-//     socket.emit('remove_stream', localStream.id );
-//   }
-//
-// }, 3000);
-
-// function add_voice_detection(stream) {
-//   const options = {
-//     fftSize: 1024,
-//     bufferLen: 1024,
-//     smoothingTimeConstant: 0.2,
-//     minCaptureFreq: 85,         // in Hz
-//     maxCaptureFreq: 255,        // in Hz
-//     noiseCaptureDuration: 1000, // in ms
-//     minNoiseLevel: 0.3,         // from 0 to 1
-//     maxNoiseLevel: 0.7,         // from 0 to 1
-//     avgNoiseMultiplier: 1.2,
-//     onVoiceStart: on_voice_start,
-//     onVoiceStop: on_voice_stop,
-//     onUpdate: function(val) {
-//       if (val > 0.1){
-//         last_activity = new Date()
-//       }
-//     }
-//   };
-//   vad(audioContext, stream, options);
-// }
 
 function gotStream(stream) {
   localStream = stream;
@@ -493,7 +410,6 @@ mute_button.addEventListener("click", function(e){
       socket.emit('remove_stream', localStream.id );
     }
     if (central_peer) {
-      console.log("m stream removed");
       socket.emit('remove_stream', localStream.id );
     }
     merge_audio();

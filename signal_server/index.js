@@ -5,7 +5,14 @@ var nodeStatic = require('node-static');
 var http = require('https');
 const fs = require('fs');
 var socketIO = require('socket.io');
+var argv = require('minimist')(process.argv.slice(2));
 
+var sub_network_size = 3;
+const argv_keys =  Object.keys(argv);
+
+if (argv_keys.indexOf("n")!=-1){
+  sub_network_size = argv["n"]
+}
 const options = {
   key: fs.readFileSync('../ssl/nginx.key'),
   cert: fs.readFileSync('../ssl/nginx.crt')
@@ -60,13 +67,14 @@ function create_connection(from_peer, to_peer, to_main, sound_only, video_slot_p
 }
 
 function get_peer(cur_el_s){
+  console.log("sub_network_size", sub_network_size);
   if (!cur_el_s){
     return
   }
   let candidates =[];
   for (let i = 0; i < cur_el_s.length; i++){
     candidates = candidates.concat(cur_el_s[i].sub_network);
-    if (cur_el_s[i].sub_network.length<2) {
+    if (cur_el_s[i].sub_network.length<sub_network_size) {
       return cur_el_s[i]
     }
   }
@@ -75,7 +83,7 @@ function get_peer(cur_el_s){
   }
   return get_peer([...candidates])
 }
-
+//wrong
 setInterval(()=>{
   if ((last_speaker && c_video_peer_ids.length == 4) && (c_video_peer_ids.indexOf(last_speaker) == -1)){
     for (let i=0;i<4; i++){
@@ -124,10 +132,8 @@ io.sockets.on('connection', function(socket) {
     }
     if (!is_central){
       c_sound_peer_ids.push(socket.id);
-      // setTimeout(()=>{
       last_speaker = socket.id;
-      // }, 1000);
-      create_connection(socket.id, network[0], to_main, sound_only);
+      create_connection(socket.id, network[0], true, true);
     }
   });
 
