@@ -1,6 +1,7 @@
 'use strict';
 var VideoStreamMerger = require('video-stream-merger');
-let assert = require('assert')
+let assert = require('assert');
+let vad = require('voice-activity-detection');
 
 var localStream;
 var remoteStream;
@@ -17,7 +18,7 @@ var localVideo = document.querySelector('#localVideo');
 var remoteVideo = document.querySelector('#remoteVideo');
 const main_stream = new MediaStream();
 let connection_for_transmit;
-const AUDIO_SLOTS = 20;
+const AUDIO_SLOTS = 5;
 
 audioContext = new AudioContext();
 /////////////////////////////////////////////
@@ -165,6 +166,11 @@ function close_connection_for_main_peer(){
 }
 
 socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id, conn_id){
+  if (!merger.started){
+    merger.start();
+    merger.result.removeTrack(merger.result.getAudioTracks()[0]);
+    create_audio_track_slots(merger.result, AUDIO_SLOTS);
+  }
   if (sock_id){
     current_sock_id = sock_id;
     Raven.setUserContext({
@@ -211,6 +217,7 @@ function create_audio_track_slots(stream, stream_count) {
     sound_track_slots.push(track);
   }
 }
+
 var local_audio = document.querySelector('#audio_control');
 function merge_audio(mute_slot=null){
   let source_steam = '';
@@ -218,6 +225,9 @@ function merge_audio(mute_slot=null){
     source_steam = main_stream;
   }else{
     source_steam = remoteStream;
+  }
+  if (source_steam == undefined){
+    return merge_audio(mute_slot)
   }
   const sound_dest = audioContext.createMediaStreamDestination();
 
@@ -241,6 +251,25 @@ function merge_audio(mute_slot=null){
   remoteVideo.srcObject = remote_video_to_show;
 }
 
+function synchronize_audio_tracks(remote_stream_source){
+  const audio_tracks = remote_stream_source.getAudioTracks();
+  assert.equal(audio_tracks.length, AUDIO_SLOTS, "AUDIO_SLOTS missing 1");
+  assert.equal(audio_tracks.length, sound_track_slots.length, "audio_tracks sound_track_slots 2");
+  for (let i in sound_track_slots) {
+    const slot = sound_track_slots[i];
+    const audio_el = document.createElement("audio"); // todo destroy element somehow
+    const new_media_stream =  new MediaStream();
+    new_media_stream.addTrack(audio_tracks[i])
+    audio_el.srcObject = new_media_stream;
+    const source = audioContext.createMediaStreamSource(new_media_stream);
+    const gain = audioContext.createGain();
+    gain.gain.value = 1;
+    source.connect(gain);
+    slot.gain = gain;
+    gain.connect(slot.dest);
+  }
+}
+
 socket.on('host_to_peer', function(peer_id, to_main, sound_only, conn_id) {
   peer = peer_id;
   console.log("host_to_peer to", peer_id, conn_id);
@@ -262,10 +291,6 @@ socket.on('host_to_peer', function(peer_id, to_main, sound_only, conn_id) {
 
     if (!central_peer) {
       createPeerConnection("peer transmit to peers", peer_id, conn_id);
-      merger.addStream(remoteStream, {"mute": true});
-      merger.start();
-      merger.result.removeTrack(merger.result.getAudioTracks()[0])
-      create_audio_track_slots(merger.result, AUDIO_SLOTS);
       peer_connections[conn_id].addStream(merger.result);
       connection_for_transmit = peer_connections[conn_id]
     } else {
@@ -368,6 +393,8 @@ function handleRemoteStreamAdded(event) {
 
   } else {
     remoteStream = event.stream;
+    merger.addStream(remoteStream, {mute:true});
+    synchronize_audio_tracks(remoteStream);
     merge_audio();
     const video_el = document.createElement("video"); // todo destroy element somehow
     video_el.srcObject = remoteStream;
@@ -379,6 +406,21 @@ function gotStream(stream) {
   localVideo.srcObject = stream;
   localStream.getAudioTracks()[0].enabled = false;
   socket.emit('create or join', room);
+  vad(audioContext, localStream ,
+    {
+      onVoiceStart: function() {
+        socket.emit('show_my_video');
+      },
+      // onVoiceStop: function() {
+      //   console.log('voice stop');
+      //   stateContainer.innerHTML = 'Voice state: <strong>inactive</strong>';
+      // },
+      // onUpdate: function(val) {
+      //   //console.log('curr val:', val);
+      //   valueContainer.innerHTML = 'Current voice activity value: <strong>' + val + '</strong>';
+      // }
+    }
+  );
 }
 
 navigator.mediaDevices.getUserMedia({
@@ -414,12 +456,7 @@ mute_button.addEventListener("click", function(e){
     }
     merge_audio();
   }
-
 });
-
-// function create_audio(){
-//   add_voice_detection(localStream);
-// };
 
 // const restart_server = document.querySelector('#restart_server');
 //  restart_server.addEventListener("click", function(e){

@@ -29,15 +29,16 @@ let c_sound_peer_ids  = [];
 let c_video_peer_ids  = [];
 let last_speaker = '';
 let connection_pool = [];
+let video_slot_position = 0;
 
 function  get_new_peer(sock_id){
   return {"value": sock_id, "sub_network":[]}
 }
 
 function print_connection_pool(){
-  console.log("start --------------------------------------------");
+  // console.log("start --------------------------------------------");
   for (let i in connection_pool){
-    console.log(connection_pool[i]);
+    // console.log(connection_pool[i]);
   }
 }
 
@@ -60,14 +61,13 @@ function create_connection(from_peer, to_peer, to_main, sound_only, video_slot_p
   // connection_pool.push(to_peer.value +"_"+ from_peer + badge);
   const connection_id = create_id();
   connection_pool.push(connection_id);
-  console.log("connect to host_to_peer", from_peer ,"to", to_peer.value);
+  // console.log("connect to host_to_peer", from_peer ,"to", to_peer.value);
   io.to(from_peer).emit("host_to_peer", to_peer.value, to_main, sound_only, connection_id);
-  console.log("connect to peer_to_host", to_peer.value ,"to", from_peer);
+  // console.log("connect to peer_to_host", to_peer.value ,"to", from_peer);
   io.to(to_peer.value).emit("peer_to_host", from_peer, video_slot_pos, to_peer.value, connection_id);
 }
 
 function get_peer(cur_el_s){
-  console.log("sub_network_size", sub_network_size);
   if (!cur_el_s){
     return
   }
@@ -83,23 +83,32 @@ function get_peer(cur_el_s){
   }
   return get_peer([...candidates])
 }
-//wrong
+
 setInterval(()=>{
   if ((last_speaker && c_video_peer_ids.length == 4) && (c_video_peer_ids.indexOf(last_speaker) == -1)){
     for (let i=0;i<4; i++){
       if (i < c_video_peer_ids.length){
         const current_viedo = c_video_peer_ids[i];
-        if (c_sound_peer_ids.indexOf(current_viedo) ==-1) {
+        if (c_sound_peer_ids.indexOf(current_viedo) == -1) {
           console.log("video slots replacements");
           if (current_viedo != network[0].value){
             io.to(current_viedo).emit('close_video_to_central', current_viedo);
           }
           create_connection(last_speaker, network[0], true, false, i);
-          c_video_peer_ids.splice(i, 1, last_speaker);
-          break;
+          c_video_peer_ids[i] = last_speaker;
+          video_slot_position = i;
+          return;
         }
       }
     }
+    if (video_slot_position == 3) {
+      video_slot_position = 0;
+    } else {
+      video_slot_position = video_slot_position + 1;
+    }
+    io.to(c_video_peer_ids[video_slot_position]).emit('close_video_to_central', c_video_peer_ids[video_slot_position]);
+    create_connection(last_speaker, network[0], true, false, video_slot_position);
+    c_video_peer_ids[video_slot_position] = last_speaker;
     last_speaker = ''
   }
 }, 500)
@@ -130,16 +139,19 @@ io.sockets.on('connection', function(socket) {
     if (network.value == ''){
       return;
     }
+    c_sound_peer_ids.push(socket.id);
+
     if (!is_central){
-      c_sound_peer_ids.push(socket.id);
-      last_speaker = socket.id;
       create_connection(socket.id, network[0], true, true);
     }
   });
-
-  socket.on('add_video_to_central', function() {
-      create_connection(socket.id, network[0], true, false);
+  socket.on("show_my_video", function () {
+    last_speaker = socket.id;
   });
+
+  // socket.on('add_video_to_central', function() {
+  //     create_connection(socket.id, network[0], true, false);
+  // });
   // socket.on('close_video_to_central', function(peer_id) {
 
   // });
