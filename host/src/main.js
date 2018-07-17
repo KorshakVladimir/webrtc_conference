@@ -18,7 +18,7 @@ var localVideo = document.querySelector('#localVideo');
 var remoteVideo = document.querySelector('#remoteVideo');
 const main_stream = new MediaStream();
 let connection_for_transmit;
-const AUDIO_SLOTS = 5;
+const AUDIO_SLOTS = 20;
 
 audioContext = new AudioContext();
 /////////////////////////////////////////////
@@ -78,7 +78,9 @@ function  createPeerConnection(connection_type, peer_id, conn_id) {
     peer_con_1.onaddstream = handleRemoteStreamAdded;
     peer_con_1.onremovestream = handleRemoteStreamRemoved;
     peer_con_1.oniceconnectionstatechange = (event)=>{
-      if (event.target.iceConnectionState == "completed") {
+      if ((event.target.iceConnectionState == "completed") || (event.target.iceConnectionState == "failed")
+        || (event.target.iceConnectionState == "failed") || (event.target.iceConnectionState == "closed")) {
+        console.log("iceConnectionState", event.target.iceConnectionState, peer_id, event.target.connection_type);
         socket.emit('connection_complete', peer_id, conn_id);
       }
     }
@@ -86,6 +88,7 @@ function  createPeerConnection(connection_type, peer_id, conn_id) {
     console.log(e);
     return;
   }
+  console.log(Object.keys(peer_connections));
 }
 
 // function handleOnsignalingstatechange(event){
@@ -150,6 +153,10 @@ socket.on('close_video_to_central', function (peer_id){
   }
 });
 
+socket.on('peer_count', function (peer_count){
+  document.getElementById("peer_count").innerText = "my name is " + peer_count;
+});
+
 function close_connection_for_main_peer(){
   if (central_peer){
     return;
@@ -158,8 +165,8 @@ function close_connection_for_main_peer(){
   for (let i in keys) {
     const con = peer_connections[keys[i]];
     if (con.connection_type  == "to_main_host_sound"){
-      console.log("close connection", keys[i])
-      con.close()
+      console.log("close connection 1", keys[i])
+      con.close();
       delete peer_connections[keys[i]]
     }
   }
@@ -197,6 +204,9 @@ socket.on("close_current_connection", function () {
   const keys = Object.keys(peer_connections);
   for (let i in keys) {
     const con = peer_connections[keys[i]];
+    if (con.connection_type != "peer transmit to peers"){
+      continue;
+    }
     console.log("close connection", keys[i])
     con.close();
     delete peer_connections[keys[i]]
@@ -257,6 +267,7 @@ function synchronize_audio_tracks(remote_stream_source){
   assert.equal(audio_tracks.length, sound_track_slots.length, "audio_tracks sound_track_slots 2");
   for (let i in sound_track_slots) {
     const slot = sound_track_slots[i];
+    slot.gain.disconnect(slot.dest);
     const audio_el = document.createElement("audio"); // todo destroy element somehow
     const new_media_stream =  new MediaStream();
     new_media_stream.addTrack(audio_tracks[i])
@@ -295,12 +306,7 @@ socket.on('host_to_peer', function(peer_id, to_main, sound_only, conn_id) {
       connection_for_transmit = peer_connections[conn_id]
     } else {
       createPeerConnection("main transmit to peers", peer_id, conn_id);
-      create_audio_track_slots(main_stream, AUDIO_SLOTS);
-      main_stream.addTrack(merger.result.getVideoTracks()[0]);
-      // remoteVideo.srcObject = remote_video_to_show;
-      remoteStream = main_stream;
       peer_connections[conn_id].addStream(main_stream);
-      merge_audio();
     }
   }
   doCall(peer_id, conn_id)
@@ -328,6 +334,11 @@ socket.on('first', function (sock_id){
           mute: true // we don't want sound from the screen (if there is any)
         });
   merger.start();
+  create_audio_track_slots(main_stream, AUDIO_SLOTS);
+  main_stream.addTrack(merger.result.getVideoTracks()[0]);
+  // remoteVideo.srcObject = remote_video_to_show;
+  remoteStream = main_stream;
+  merge_audio();
 });
 
 function add_sound_track(event, new_stream){
@@ -395,9 +406,10 @@ function handleRemoteStreamAdded(event) {
     remoteStream = event.stream;
     merger.addStream(remoteStream, {mute:true});
     synchronize_audio_tracks(remoteStream);
-    merge_audio();
+
     const video_el = document.createElement("video"); // todo destroy element somehow
     video_el.srcObject = remoteStream;
+    merge_audio();
   }
 }
 

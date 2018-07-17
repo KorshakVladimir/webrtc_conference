@@ -9,6 +9,7 @@ var argv = require('minimist')(process.argv.slice(2));
 
 var sub_network_size = 3;
 const argv_keys =  Object.keys(argv);
+var peer_count = 0;
 
 if (argv_keys.indexOf("n")!=-1){
   sub_network_size = argv["n"]
@@ -52,6 +53,12 @@ var create_id = function () {
 };
 
 function create_connection(from_peer, to_peer, to_main, sound_only, video_slot_pos){
+  if (!from_peer){
+    console.error("create_connection from_peer is", from_peer);
+  }
+  if (!to_peer.value){
+    console.error("create_connection to_peer.value is", to_peer.value);
+  }
   // const badge =  to_main ? "to_main":"" + sound_only ? "sound_only":"";
   // if (connection_pool.indexOf(from_peer +"_"+ to_peer.value + badge)!=-1){
   //   console.log("duplicate connection", from_peer +"_"+ to_peer.value + badge)
@@ -74,7 +81,7 @@ function get_peer(cur_el_s){
   let candidates =[];
   for (let i = 0; i < cur_el_s.length; i++){
     candidates = candidates.concat(cur_el_s[i].sub_network);
-    if (cur_el_s[i].sub_network.length<sub_network_size) {
+    if (cur_el_s[i].sub_network.length < sub_network_size) {
       return cur_el_s[i]
     }
   }
@@ -106,12 +113,13 @@ setInterval(()=>{
     } else {
       video_slot_position = video_slot_position + 1;
     }
+    console.log("video_slot_position", video_slot_position);
     io.to(c_video_peer_ids[video_slot_position]).emit('close_video_to_central', c_video_peer_ids[video_slot_position]);
     create_connection(last_speaker, network[0], true, false, video_slot_position);
     c_video_peer_ids[video_slot_position] = last_speaker;
     last_speaker = ''
   }
-}, 500)
+}, 500);
 
 io.sockets.on('connection', function(socket) {
   function log() {
@@ -160,8 +168,10 @@ io.sockets.on('connection', function(socket) {
   });
 
   socket.on('create or join', function(room) {
-    // clients.push(socket.id);
     socket.join(room);
+    peer_count = peer_count + 1;
+    console.log("name ", peer_count);
+    io.to(socket.id).emit('peer_count', peer_count);
     io.clients((error, clients) => {
       if (error) throw error;
       console.log("connection length", clients.length); // => [PZDoMHjiu8PYfRiKAAAF, Anw2LatarvGVVXEIAAAD]
@@ -173,6 +183,7 @@ io.sockets.on('connection', function(socket) {
     } else {
       // const last = clients.slice(-2)[0];
       const peer = get_peer(network);
+      console.log(peer)
       peer.sub_network.push(get_new_peer(socket.id));
       const last = peer.value;
       // io.to(socket.id).emit('peer_to_host', last, 0, socket.id);
@@ -203,20 +214,18 @@ io.sockets.on('connection', function(socket) {
   // });
   function find_peer(el, net_el) {
     if (net_el == undefined) {
-
-      console.log("something wrong with find peer for ", el);
-
+      return;
     }
     if (net_el.value == el) {
       return {"parent":'', "children":net_el.sub_network}
     }
-    for (let i =0; i<net_el.sub_network.length; i++) {
+    for (let i =0; i < net_el.sub_network.length; i++) {
       const peer = net_el.sub_network[i];
       if (peer.value == el) {
 
         return {"parent":net_el, "children":peer.sub_network}
       }
-      const peers_for_restore = find_peer(el, peer.sub_network);
+      const peers_for_restore = find_peer(el, peer);
       if (peers_for_restore){
         return peers_for_restore;
       }
@@ -228,33 +237,55 @@ io.sockets.on('connection', function(socket) {
     return;
   }
    create_connection(peers_for_restore.parent.value, subst_peer);
+  console.log("restore connection 0", peers_for_restore.parent.value, subst_peer);
    const new_peer = get_new_peer(subst_peer);
    for (let i=0; i< peers_for_restore.children.length; i++ ){
      const children_peer = peers_for_restore.children[i];
      if (children_peer.value == new_peer.value ) {
        continue
      }
-     create_connection(subst_peer, children_peer.value);
+     console.log("restore connection 1", subst_peer, children_peer.value);
+     create_connection(subst_peer.value, children_peer);
      new_peer.sub_network.push(children_peer)
    }
    peers_for_restore.parent.sub_network.push(new_peer);
  }
  socket.on('remove_peer', function() {
    console.log("we lost", socket.id)
-    const subst_peer = get_peer(network);
-    if (!subst_peer || !network || socket.id){
+    const sound_id_pos = c_sound_peer_ids.indexOf(socket.id)
+    if (sound_id_pos != -1){
+      c_sound_peer_ids.splice(sound_id_pos, 1);
+    }
+
+    if (!network || !socket.id){
       return
     }
+    const peers_for_restore = find_peer(socket.id, network[0]);
+    if (!peers_for_restore){
+      return
+    }
+    if (!peers_for_restore.children){
+      return
+    }
+    const subst_peer = get_peer(network);
+    const subst_peer_parent_network = find_peer(socket.id, network[0]).parent.sub_network;
+    if (subst_peer_parent_network == undefined) {
+      return;
+    }
+    subst_peer_parent_network.splice(subst_peer_parent_network.indexOf(subst_peer.value),1);
+
     const index_for_video = c_video_peer_ids.indexOf(socket.id);
     if (index_for_video != -1){
       c_video_peer_ids.splice(index_for_video, 1);
     }
-    const peers_for_restore = find_peer(socket.id, network[0]);
     if (!peers_for_restore.parent && !peers_for_restore.children){
       return
     }
-    restore_connection(peers_for_restore, subst_peer);
-    io.to(subst_peer).emit('close_current_connection');
+    // console.log("peers_for_restore", peers_for_restore);
+    // console.log("subst_peer", subst_peer);
+    io.to(subst_peer.value).emit('close_current_connection');
+    setTimeout(()=>restore_connection(peers_for_restore, subst_peer), 1000);
+
   });
   socket.on('restart', function() {
     network = [];
