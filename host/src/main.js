@@ -11,14 +11,14 @@ let conn_to_central;
 var is_host = false;
 var central_peer = false;
 let current_sock_id = '';
-
+var session_id = '';
 const sound_track_slots = [];
 var merger = new VideoStreamMerger();
 var localVideo = document.querySelector('#localVideo');
 var remoteVideo = document.querySelector('#remoteVideo');
 const main_stream = new MediaStream();
 let connection_for_transmit;
-const AUDIO_SLOTS = 20;
+const AUDIO_SLOTS = 4;
 
 audioContext = new AudioContext();
 /////////////////////////////////////////////
@@ -77,11 +77,9 @@ function  createPeerConnection(connection_type, peer_id, conn_id) {
     peer_con_1.onicecandidate = handleIceCandidate.bind({"peer_id": peer_id, "conn_id": conn_id});
     peer_con_1.onaddstream = handleRemoteStreamAdded;
     peer_con_1.onremovestream = handleRemoteStreamRemoved;
-    peer_con_1.oniceconnectionstatechange = (event)=>{
-      if ((event.target.iceConnectionState == "completed") || (event.target.iceConnectionState == "failed")
-        || (event.target.iceConnectionState == "failed") || (event.target.iceConnectionState == "closed")) {
-        console.log("iceConnectionState", event.target.iceConnectionState, peer_id, event.target.connection_type);
-        socket.emit('connection_complete', peer_id, conn_id);
+    peer_con_1.onsignalingstatechange = (event)=>{
+      if (event.target.signalingState == "closed") {
+        socket.emit('connection_complete', peer_id, conn_id, event.target.signalingState);
       }
     }
   } catch (e) {
@@ -137,6 +135,16 @@ socket.on('remove_stream', function (stream_id, soket_id){
       break;
     }
   }
+});
+
+socket.on('session_id', function (id){
+  session_id  = id;
+});
+
+socket.on('all_slots_are_in_use', function (){
+  document.getElementById("slots_in_use").hidden = false;
+  mute_button.click();
+  setTimeout(()=>{document.getElementById("slots_in_use").hidden=true}, 10000)
 });
 
 socket.on('close_video_to_central', function (peer_id){
@@ -452,9 +460,8 @@ mute_button.addEventListener("click", function(e){
     e.target.innerText = "MUTE";
     if (central_peer){
       add_sound_track({target:{host_id:current_sock_id}}, localStream);
-    } else {
-      socket.emit('voice_start', central_peer, true, true);
     }
+    socket.emit('voice_start', central_peer, true, true);
   }else{
     e.target.innerText = "UNMUTE";
     if (conn_to_central){
@@ -477,5 +484,5 @@ mute_button.addEventListener("click", function(e){
 
 
 window.onbeforeunload = function() {
-  socket.emit('remove_peer');
+  socket.emit('remove_peer', session_id);
 };
