@@ -21,7 +21,7 @@
   <h3 id="peer_count" ></h3>
   <h4 id="client_id" ></h4>
 
-  <!--<button id="remove_button">remove</button>-->
+  <button id="remove_button">remove</button>
   <div id="videos">
     <video id="localVideo" autoplay playsinline height="200px" class="local_video" controls muted></video>
     <video id="remoteVideo" autoplay playsinline   height="600px" width="800px" controls ></video>
@@ -30,9 +30,9 @@
   <button id="mute_button">UNMUTE</button>
   <audio id="audio_control" controls autoplay hidden></audio>
   <script src="https://cdn.ravenjs.com/3.26.2/raven.min.js" crossorigin="anonymous"></script>
-   <script>
-     Raven.config('https://dd0a6e76a5ae4159b4c33042ea466275@sentry.io/1242210').install()
-   </script>
+  <script>
+    Raven.config('https://dd0a6e76a5ae4159b4c33042ea466275@sentry.io/1242210').install()
+  </script>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.1.0/socket.io.js"></script>
   <script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
