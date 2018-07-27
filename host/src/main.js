@@ -526,15 +526,15 @@ setInterval(function () {
   }
 },1000);
 
-document.getElementById("remove_button").addEventListener("click",function(){
-  const peer_connections_keys = Object.keys(peer_connections);
-  for (let i=0; i< peer_connections_keys.length; i++) {
-    // console.log(peer_connections[peer_connections_keys[i]].connection_type);
-    if (peer_connections[peer_connections_keys[i]].connection_type == "peer_to_host") {
-      socket.emit("weak_parent", peer_connections[peer_connections_keys[i]].peer_id, peer_connections_keys[i]);
-    }
-  }
-  // socket.emit("weak_parent", ;
-})
+// document.getElementById("remove_button").addEventListener("click",function(){
+//   const peer_connections_keys = Object.keys(peer_connections);
+//   for (let i=0; i< peer_connections_keys.length; i++) {
+//     // console.log(peer_connections[peer_connections_keys[i]].connection_type);
+//     if (peer_connections[peer_connections_keys[i]].connection_type == "peer_to_host") {
+//       socket.emit("weak_parent", peer_connections[peer_connections_keys[i]].peer_id, peer_connections_keys[i]);
+//     }
+//   }
+//   // socket.emit("weak_parent", ;
+// })
 
 setInterval(()=>{console.log("peer_connections lenth",Object.keys(peer_connections).length, peer_connections)},1000);
