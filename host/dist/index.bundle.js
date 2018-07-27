@@ -1968,8 +1968,8 @@ var audioContext;
 var pcConfig = {
   'iceServers': [
     {'urls': 'stun:stun.l.google.com:19302'},
-    {'urls': 'turn:numb.viagenie.ca', "username":"saninosan@gmail.com","credential":"sanosano7"},
-    {'urls': 'turn:d1.synergy.net:3478',"username":"synergy","credential":"q1w2e3"}
+    // {'urls': 'turn:numb.viagenie.ca', "username":"saninosan@gmail.com","credential":"sanosano7"},
+    // {'urls': 'turn:d1.synergy.net:3478',"username":"synergy","credential":"q1w2e3"}
     // "turn:my_username@<turn_server_ip_address>", "credential":"my_password"
   ]
 };
@@ -2009,6 +2009,7 @@ function  createPeerConnection(connection_type, peer_id, conn_id) {
     const peer_con_1 = new RTCPeerConnection(null);
     peer_connections[conn_id] = peer_con_1;
     peer_con_1.peer_id = peer_id;
+    peer_con_1.conn_id = conn_id;
     peer_con_1.connection_type = connection_type;
     peer_con_1.setConfiguration(pcConfig);
     peer_con_1.onicecandidate = handleIceCandidate.bind({"peer_id": peer_id, "conn_id": conn_id});
@@ -2016,22 +2017,18 @@ function  createPeerConnection(connection_type, peer_id, conn_id) {
     peer_con_1.onremovestream = handleRemoteStreamRemoved;
     peer_con_1.onsignalingstatechange = (event)=>{
       if (event.target.signalingState == "closed") {
+        console.log("close connection");
         socket.emit('connection_complete', peer_id, conn_id, event.target.signalingState);
+        delete peer_connections[event.target.conn_id]
       }
     }
   } catch (e) {
     console.log(e);
     return;
   }
-  console.log(Object.keys(peer_connections));
+  // console.log(Object.keys(peer_connections));
 }
 
-// function handleOnsignalingstatechange(event){
-//   console.log("signal state",event.target.signalingState );
-//   if (event.target.signalingState == "stable" && event.target.connection_type != 'peer_to_host'){
-//     socket.emit('connection_complete');
-//   }
-// }
 function handleIceCandidate(event) {
   if (event.candidate) {
     sendMessage({
@@ -2086,16 +2083,7 @@ socket.on('all_slots_are_in_use', function (){
 
 socket.on('close_video_to_central', function (peer_id){
   console.log("close_video_to_central");
-  console.log(peer_connections);
-  console.log(peer_id);
-  const keys = Object.keys(peer_connections);
-  for (let i=0; i<keys; i++){
-    if (peer_connections[i].connection_type == "to_main_host_video"){
-      console.log("close connection", keys[i])
-      peer_connections[i].close();
-      delete peer_connections[i];
-    }
-  }
+  close_connection_by_type("to_main_host_video")
 });
 
 socket.on('peer_count', function (peer_count){
@@ -2128,7 +2116,7 @@ socket.on('peer_to_host', function (peer_id, video_slot_pos, sock_id, conn_id){
     Raven.setUserContext({
         sock_id: sock_id,
     })
-    document.getElementById("client_id").innerText= "id - " +sock_id;
+    document.getElementById("client_id").innerText= "id - " + sock_id + " parent id- " + peer_id;
   }
   close_connection_for_main_peer();
   peer = peer_id;
@@ -2142,8 +2130,13 @@ socket.on('mute_own_channel', function (array_index) {
   merge_audio(array_index);
 });
 
+socket.on("close_specific_connection", function (conn_id) {
+  peer_connections[conn_id].close();
+  delete peer_connections[conn_id];
+});
+
 socket.on("close_current_connection", function () {
-  if (central_peer){
+  if (central_peer) {
     return;
   }
   const keys = Object.keys(peer_connections);
@@ -2156,13 +2149,14 @@ socket.on("close_current_connection", function () {
     con.close();
     delete peer_connections[keys[i]]
   }
+  socket.emit("close_current_connection_done");
 });
 
-function create_audio_track_slots(stream, stream_count) {
-  if (sound_track_slots.length == stream_count) {
+function create_audio_track_slots(stream, pool_size) {
+  if (sound_track_slots.length == pool_size) {
     return;
   }
-  for (let i=0; i<stream_count; i++){
+  for (let i=0; i<pool_size; i++){
     const  track = {source:'', state:'free'};
     track.gain  = audioContext.createGain();
     track.gain.gain.value = 1;
@@ -2226,6 +2220,10 @@ function synchronize_audio_tracks(remote_stream_source){
   }
 }
 
+socket.on('show_central_peer_video', function(i) {
+  merge_video_stream(localStream, i)
+
+});
 socket.on('host_to_peer', function(peer_id, to_main, sound_only, conn_id) {
   peer = peer_id;
   console.log("host_to_peer to", peer_id, conn_id);
@@ -2236,7 +2234,6 @@ socket.on('host_to_peer', function(peer_id, to_main, sound_only, conn_id) {
         const newStream = new MediaStream();
         newStream.addTrack(localStream.getAudioTracks()[0]);
         peer_connections[conn_id].addStream(newStream);
-        conn_to_central = peer_connections[conn_id];
     }else {
         createPeerConnection("to_main_host_video", peer_id, conn_id);
         const newStream = new MediaStream();
@@ -2248,7 +2245,7 @@ socket.on('host_to_peer', function(peer_id, to_main, sound_only, conn_id) {
     if (!central_peer) {
       createPeerConnection("peer transmit to peers", peer_id, conn_id);
       peer_connections[conn_id].addStream(merger.result);
-      connection_for_transmit = peer_connections[conn_id]
+      connection_for_transmit = peer_connections[conn_id];
     } else {
       createPeerConnection("main transmit to peers", peer_id, conn_id);
       peer_connections[conn_id].addStream(main_stream);
@@ -2313,41 +2310,37 @@ function add_sound_track(event, new_stream){
   throw "maximum count of sound track"
 }
 
+function merge_video_stream(stream, video_slot_pos){
+  merger.addStream(stream, {
+      x: (video_slot_pos == 0 || video_slot_pos == 3) ? 0 : 200, // position of the topleft corner
+      y: (video_slot_pos == 0 || video_slot_pos == 1) ? 0 : 150 ,
+      width: 200,
+      height: 150,
+      mute: true // we don't want sound from the screen (if there is any)
+    });
+}
+
 function handleRemoteStreamAdded(event) {
-  // setInterval(function () {
-  //    console.log("try run starts");
-  //    peer_con.getStats(function(report){
-  //      report.result().forEach(function (result) {
-  //         var item = {};
-  //         result.names().forEach(function (name) {
-  //             item[name] = result.stat(name);
-  //         });
-  //         item.id = result.id;
-  //         item.type = result.type;
-  //         item.timestamp = result.timestamp;
-  //         console.log(item);
-  //     });
-  //    });
-  //   },5000);
   if (central_peer){
     const new_remote_stream = event.stream;
     const video_track  = new_remote_stream.getVideoTracks().length;
     if (video_track) {
       const video_slot_pos = event.target.video_slot_pos;
-      merger.addStream(event.stream, {
-          x: (video_slot_pos == 0 || video_slot_pos == 3) ? 0 : 200, // position of the topleft corner
-          y: (video_slot_pos == 0 || video_slot_pos == 1) ? 0 : 150 ,
-          width: 200,
-          height: 150,
-          mute: true // we don't want sound from the screen (if there is any)
-        });
-
+      merge_video_stream(event.stream, video_slot_pos);
+      // merger.addStream(event.stream, {
+      //     x: (video_slot_pos == 0 || video_slot_pos == 3) ? 0 : 200, // position of the topleft corner
+      //     y: (video_slot_pos == 0 || video_slot_pos == 1) ? 0 : 150 ,
+      //     width: 200,
+      //     height: 150,
+      //     mute: true // we don't want sound from the screen (if there is any)
+      //   });
     } else {
       const new_stream = event.stream;
       add_sound_track(event, new_stream);
     }
 
   } else {
+    merger.removeStream(remoteStream);
     remoteStream = event.stream;
     merger.addStream(remoteStream, {mute:true});
     synchronize_audio_tracks(remoteStream);
@@ -2389,6 +2382,18 @@ navigator.mediaDevices.getUserMedia({
     alert('getUserMedia() error: ' + e);
   });
 //////////////////////////////////////////////////
+function close_connection_by_type(type){
+  const peer_connections_keys = Object.keys(peer_connections);
+  for (let i=0; i< peer_connections_keys.length; i++){
+    const conn = peer_connections[peer_connections_keys[i]];
+    if (conn.connection_type == type) {
+      conn.close();
+      delete peer_connections[peer_connections_keys[i]];
+      socket.emit("close_specific_connection", conn.peer_id, conn.conn_id);
+    }
+    // console.log("connection_type",peer_connections[peer_connections_keys[i]].connection_type);
+  }
+}
 const mute_button = document.querySelector('#mute_button');
 mute_button.addEventListener("click", function(e){
   const audio = localStream.getAudioTracks()[0];
@@ -2399,17 +2404,10 @@ mute_button.addEventListener("click", function(e){
       add_sound_track({target:{host_id:current_sock_id}}, localStream);
     }
     socket.emit('voice_start', central_peer, true, true);
-  }else{
+  } else {
     e.target.innerText = "UNMUTE";
-    if (conn_to_central){
-      conn_to_central.close();
-      is_host = false;
-      conn_to_central = '';
-      socket.emit('remove_stream', localStream.id );
-    }
-    if (central_peer) {
-      socket.emit('remove_stream', localStream.id );
-    }
+    socket.emit('remove_stream', localStream.id);
+    close_connection_by_type("to_main_host_sound")
     merge_audio();
   }
 });
@@ -2424,6 +2422,59 @@ window.onbeforeunload = function() {
   socket.emit('remove_peer', session_id);
 };
 
+
+setInterval(function () {
+   const peer_connections_keys = Object.keys(peer_connections);
+   for (let i=0; i< peer_connections_keys.length; i++) {
+     peer_connections[peer_connections_keys[i]].getStats(function(report){
+        report.result().forEach(function (result) {
+            var item = {};
+            let show = false;
+            if (result.id.search("recv") > -1 ){
+              if(result.stat("mediaType") != "video"){
+                return
+              }
+              // console.log("find");
+              // console.log("googInterframeDelayMax", result.stat("googInterframeDelayMax"));
+              if (result.stat("googInterframeDelayMax") > 1000){
+
+                // throw 'broken'
+                socket.emit("weak_parent", peer_connections[peer_connections_keys[i]].peer_id, peer_connections_keys[i])
+              }
+            }
+            // item = {};
+            // result.names().forEach(function (name) {
+            //     item[name] = result.stat(name);
+            // });
+            // item.id = result.id;
+            // item.type = result.type;
+            // item.timestamp = result.timestamp;
+            // console.log(item);
+            // item.id = result.id;
+            // item.type = result.type;
+            // item.timestamp = result.timestamp;
+
+            // if (show){
+            //   console.log(item);
+            //   throw 'broken'
+            // }
+        });
+     });
+  }
+},1000);
+
+document.getElementById("remove_button").addEventListener("click",function(){
+  const peer_connections_keys = Object.keys(peer_connections);
+  for (let i=0; i< peer_connections_keys.length; i++) {
+    // console.log(peer_connections[peer_connections_keys[i]].connection_type);
+    if (peer_connections[peer_connections_keys[i]].connection_type == "peer_to_host") {
+      socket.emit("weak_parent", peer_connections[peer_connections_keys[i]].peer_id, peer_connections_keys[i]);
+    }
+  }
+  // socket.emit("weak_parent", ;
+})
+
+setInterval(()=>{console.log("peer_connections lenth",Object.keys(peer_connections).length, peer_connections)},1000);
 
 /***/ })
 /******/ ]);
